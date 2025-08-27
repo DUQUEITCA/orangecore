@@ -1,0 +1,45 @@
+Después de instalar el SDK de .NET, puedes empezar a usarlo abriendo una **terminal** o **símbolo del sistema** (`cmd`, PowerShell, o Bash) y usando el comando `dotnet`.
+
+-----
+
+### Verificación de la instalación
+
+Para verificar que la instalación se realizó correctamente, abre una terminal y escribe:
+
+```sh
+dotnet --info
+```
+
+Este comando te mostrará la versión del SDK de .NET instalada, así como los tiempos de ejecución (*runtimes*) y otra información del entorno. Si el comando se ejecuta sin errores, significa que .NET está listo para usarse.
+
+-----
+
+### Creación de un proyecto
+
+Una vez verificado, puedes crear un nuevo proyecto. .NET tiene varias plantillas integradas. Por ejemplo, para crear una aplicación de consola, navega a la carpeta donde quieres que se cree el proyecto y ejecuta:
+
+```sh
+dotnet new console -n MiPrimeraApp
+```
+
+  * `dotnet new`: es el comando para crear un nuevo proyecto.
+  * `console`: es la plantilla del proyecto (puede ser `webapi`, `web`, `classlib`, etc.).
+  * `-n MiPrimeraApp`: le da el nombre "MiPrimeraApp" a tu proyecto.
+
+-----
+
+### Ejecución del proyecto
+
+Para ejecutar el proyecto que acabas de crear, navega a la carpeta del proyecto (`cd MiPrimeraApp`) y usa el comando `dotnet run`:
+
+```sh
+dotnet run
+```
+
+Este comando compila y ejecuta la aplicación, y verás la salida en la terminal.
+
+-----
+
+### Uso de un IDE
+
+Para una experiencia de desarrollo más completa, puedes usar un entorno de desarrollo integrado (IDE) como **Visual Studio** o **Visual Studio Code**. Estos IDEs tienen integración con .NET y te permiten crear, compilar y depurar proyectos de forma visual, sin necesidad de usar la línea de comandos para todas las tareas.

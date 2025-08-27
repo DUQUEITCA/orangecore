@@ -1,0 +1,33 @@
+En una comparación de rendimiento, **ASP.NET Core** (parte del ecosistema .NET) generalmente supera a **Django**. Esto se debe a la naturaleza compilada de C# frente a la naturaleza interpretada de Python. Sin embargo, la elección no debería basarse únicamente en el rendimiento, ya que ambos frameworks son más que capaces para la gran mayoría de los proyectos.
+
+---
+
+### Rendimiento: .NET vs. Django
+
+* **ASP.NET Core:** Es conocido por su **alto rendimiento** y su eficiencia en el uso de recursos. Al estar escrito en C# (un lenguaje compilado), el código se traduce directamente a código máquina, lo que resulta en una ejecución muy rápida. Esto lo hace ideal para aplicaciones a gran escala y de alta carga, donde cada milisegundo cuenta.
+* **Django:** Django, que usa Python (un lenguaje interpretado), es inherentemente más lento que un framework compilado. Esto no significa que sea malo, simplemente que el código debe ser interpretado en tiempo de ejecución. En la mayoría de los casos, la diferencia de velocidad es imperceptible para el usuario final. 
+
+### Comparación del ORM
+
+* **Entity Framework Core (.NET):** EF Core es un ORM poderoso y flexible. Una de sus mayores ventajas es su integración con **LINQ (Language Integrated Query)**, que permite escribir consultas a la base de datos de manera muy intuitiva utilizando la sintaxis de C#. Esto mejora la productividad y la legibilidad del código. Además, al igual que el framework, EF Core es altamente optimizado para el rendimiento.
+* **Django ORM:** El ORM de Django es una de sus características más destacadas por su **simplicidad y facilidad de uso**. Permite a los desarrolladores interactuar con la base de datos de una manera muy "Pythonic", lo que acelera el desarrollo inicial. Sin embargo, para consultas muy complejas o no convencionales, puede ser menos flexible o generar consultas SQL menos eficientes que EF Core.
+
+---
+
+### ¿Qué resulta más conveniente? 🤔
+
+La conveniencia no se mide solo por el rendimiento, sino por el contexto del proyecto y la experiencia del equipo de desarrollo.
+
+* **Elige .NET si:**
+    * Tu proyecto tiene **altos requisitos de rendimiento** y escalabilidad.
+    * Necesitas una integración nativa con el **ecosistema de Microsoft** (Azure, Visual Studio, etc.).
+    * Tu equipo está más familiarizado con C# y los lenguajes de tipo estático.
+* **Elige Django si:**
+    * La **velocidad de desarrollo** es la máxima prioridad (prototipos, MVPs).
+    * Tu proyecto se beneficia de la gran cantidad de librerías de Python para ciencia de datos, machine learning, etc.
+    * Tu equipo tiene experiencia con Python.
+
+Para la mayoría de los casos, ambos frameworks son excelentes opciones. Si bien .NET tiene una ventaja de rendimiento clara, Django a menudo ofrece una **mayor velocidad de prototipado** gracias a su filosofía de "baterías incluidas".
+
+Este video compara las fortalezas de Django y ASP.NET para ayudarte a decidir cuál elegir. [Django o ASP.NET Core: ¿Cuál elegir?](https://www.youtube.com/watch?v=KHeBc0QrWtU)
+http://googleusercontent.com/youtube_content/0
