@@ -1,0 +1,1 @@
+"C:\Program Files\PostgreSQL\17\bin\psql" -U postgres -W -h localhost -d orangecore_db < backups_db/orangecore_db_20250827.sql

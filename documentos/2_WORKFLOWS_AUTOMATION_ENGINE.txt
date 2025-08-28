@@ -1,0 +1,989 @@
+DOCUMENTACI�N COMPLETA: M�DULO 2 - WORKFLOWS & AUTOMATION ENGINE + AI
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI (30 TABLAS)
+
+TABLA 76: WORKFLOW_DEFINITIONS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria del workflow
+3. workflow_name (varchar(100)) - Nombre descriptivo del workflow
+4. workflow_description (text) - Descripci�n detallada del prop�sito y funcionamiento
+5. workflow_category (varchar(50)) - Categor�a: 'Collections', 'Onboarding', 'Project_Management', 'Customer_Service'
+6. trigger_type (varchar(30)) - Tipo de trigger: 'MANUAL', 'SCHEDULED', 'EVENT_DRIVEN', 'AI_TRIGGERED'
+7. trigger_config (json) - Configuraci�n espec�fica del trigger (eventos, condiciones, timing)
+8. is_active (boolean, DEFAULT TRUE) - Si el workflow est� activo y ejecut�ndose
+9. is_system_workflow (boolean, DEFAULT FALSE) - Workflows predefinidos del sistema vs custom
+10. execution_priority (int) - Prioridad de ejecuci�n 1-10 (1=highest priority)
+11. max_concurrent_executions (int) - M�ximo n�mero de ejecuciones simult�neas permitidas
+12. timeout_minutes (int) - Timeout en minutos para ejecuci�n completa
+13. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el workflow
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, workflow_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Pertenece a ORGANIZATIONS (organization_id)
+* Creado por CONTACTS (created_by_contact_id)
+* Tiene m�ltiples WORKFLOW_STEPS
+* Puede ejecutarse en WORKFLOW_EXECUTIONS
+�ndices Sugeridos:
+* INDEX(organization_id, is_active) para filtrado r�pido
+* INDEX(workflow_category) para b�squedas por categor�a
+* INDEX(trigger_type) para workflows automatizados
+
+TABLA 77: WORKFLOW_STEPS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_definition_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow al que pertenece este step
+3. step_name (varchar(100)) - Nombre descriptivo del paso
+4. step_order (int) - Orden de ejecuci�n dentro del workflow
+5. step_type (varchar(50)) - Tipo: 'ACTION', 'CONDITION', 'LOOP', 'AI_DECISION', 'HUMAN_APPROVAL', 'DELAY'
+6. step_config (json) - Configuraci�n espec�fica del paso (par�metros, condiciones)
+7. parent_step_id (int, FK ? WORKFLOW_STEPS) - Para steps anidados o condicionales
+8. condition_expression (text) - Expresi�n l�gica para steps condicionales
+9. ai_model_id (int, FK ? ML_MODELS) - Modelo AI para decisiones automatizadas
+10. retry_strategy (varchar(30)) - Estrategia de retry: 'NONE', 'IMMEDIATE', 'EXPONENTIAL_BACKOFF'
+11. max_retries (int, DEFAULT 3) - N�mero m�ximo de reintentos
+12. timeout_minutes (int) - Timeout espec�fico para este paso
+13. is_parallel (boolean, DEFAULT FALSE) - Si puede ejecutarse en paralelo con otros steps
+14. success_criteria (json) - Criterios para considerar el step exitoso
+15. failure_handling (varchar(30)) - Comportamiento en falla: 'STOP', 'CONTINUE', 'RETRY', 'ESCALATE'
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(workflow_definition_id, step_order) - Orden �nico por workflow
+Relaciones:
+* Pertenece a WORKFLOW_DEFINITIONS (workflow_definition_id)
+* Puede tener parent WORKFLOW_STEPS (parent_step_id)
+* Puede usar ML_MODELS (ai_model_id)
+* Se ejecuta en WORKFLOW_EXECUTIONS
+�ndices Sugeridos:
+* INDEX(workflow_definition_id, step_order) para ejecuci�n secuencial
+* INDEX(step_type) para an�lisis por tipo de paso
+* INDEX(ai_model_id) para steps con AI
+
+TABLA 78: WORKFLOW_EXECUTIONS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_definition_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow que se est� ejecutando
+3. execution_key (varchar(100)) - Clave �nica para tracking y debugging
+4. context_table (varchar(50)) - Tabla de contexto (CUSTOMER_PROJECTS, CONTACTS, etc.)
+5. context_id (int) - ID del registro en la tabla de contexto
+6. triggered_by (varchar(30)) - Qu� dispar� la ejecuci�n: 'USER', 'SCHEDULE', 'EVENT', 'AI'
+7. triggered_by_contact_id (int, FK ? CONTACTS) - Usuario que dispar� manualmente (si aplica)
+8. execution_status (varchar(30)) - Estado: 'RUNNING', 'COMPLETED', 'FAILED', 'PAUSED', 'CANCELLED'
+9. current_step_id (int, FK ? WORKFLOW_STEPS) - Step actual en ejecuci�n
+10. execution_data (json) - Datos y variables de la ejecuci�n actual
+11. ai_optimization_applied (boolean, DEFAULT FALSE) - Si se aplicaron optimizaciones de AI
+12. performance_metrics (json) - M�tricas de performance (tiempo, recursos)
+13. error_details (json) - Detalles de errores si los hay
+14. started_at (timestamp) - Timestamp de inicio de ejecuci�n
+15. completed_at (timestamp) - Timestamp de finalizaci�n
+16. estimated_completion_at (timestamp) - Estimaci�n AI de finalizaci�n
+17. total_duration_minutes (decimal(8,2)) - Duraci�n total en minutos
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(execution_key) - Clave de ejecuci�n �nica globalmente
+Relaciones:
+* Ejecuta WORKFLOW_DEFINITIONS (workflow_definition_id)
+* Disparado por CONTACTS (triggered_by_contact_id)
+* Est� en WORKFLOW_STEPS (current_step_id)
+* Contexto en m�ltiples tablas (context_table/context_id)
+�ndices Sugeridos:
+* INDEX(workflow_definition_id, execution_status) para monitoreo
+* INDEX(context_table, context_id) para tracking contextual
+* INDEX(execution_status, started_at) para dashboards
+
+TABLA 79: WORKFLOW_VARIABLES
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_execution_id (int, FK ? WORKFLOW_EXECUTIONS) - Ejecuci�n a la que pertenece
+3. variable_name (varchar(100)) - Nombre de la variable
+4. variable_type (varchar(20)) - Tipo: 'STRING', 'NUMBER', 'BOOLEAN', 'JSON', 'DATE'
+5. variable_value (text) - Valor actual de la variable
+6. variable_scope (varchar(20)) - Scope: 'GLOBAL', 'STEP', 'TEMPORARY', 'OUTPUT'
+7. is_input (boolean, DEFAULT FALSE) - Si es variable de entrada al workflow
+8. is_output (boolean, DEFAULT FALSE) - Si es variable de salida del workflow
+9. is_ai_generated (boolean, DEFAULT FALSE) - Si fue generada por AI
+10. ai_confidence_score (decimal(5,2)) - Nivel de confianza AI (0-100)
+11. source_step_id (int, FK ? WORKFLOW_STEPS) - Step que gener�/modific� la variable
+12. encryption_required (boolean, DEFAULT FALSE) - Si requiere encriptaci�n
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(workflow_execution_id, variable_name) - Nombre �nico por ejecuci�n
+Relaciones:
+* Pertenece a WORKFLOW_EXECUTIONS (workflow_execution_id)
+* Puede ser generada por WORKFLOW_STEPS (source_step_id)
+�ndices Sugeridos:
+* INDEX(workflow_execution_id, variable_scope) para acceso por scope
+* INDEX(is_ai_generated) para an�lisis AI
+* INDEX(variable_type) para validaciones de tipo
+
+TABLA 80: WORKFLOW_SCHEDULES
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_definition_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow a programar
+3. schedule_name (varchar(100)) - Nombre descriptivo del schedule
+4. schedule_type (varchar(20)) - Tipo: 'CRON', 'INTERVAL', 'AI_OPTIMIZED', 'EVENT_BASED'
+5. cron_expression (varchar(100)) - Expresi�n CRON para scheduling
+6. interval_minutes (int) - Intervalo en minutos para ejecuci�n recurrente
+7. ai_optimization_enabled (boolean, DEFAULT FALSE) - Si AI optimiza los tiempos
+8. optimal_execution_times (json) - Tiempos �ptimos determinados por AI
+9. timezone (varchar(50)) - Zona horaria para el schedule
+10. is_active (boolean, DEFAULT TRUE) - Si el schedule est� activo
+11. next_execution_at (timestamp) - Pr�xima ejecuci�n programada
+12. last_execution_at (timestamp) - �ltima ejecuci�n completada
+13. total_scheduled_executions (int, DEFAULT 0) - Total de ejecuciones realizadas
+14. max_executions (int) - M�ximo de ejecuciones (NULL = ilimitado)
+15. performance_metrics (json) - M�tricas de performance del schedule
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Programa WORKFLOW_DEFINITIONS (workflow_definition_id)
+* Genera WORKFLOW_EXECUTIONS cuando se dispara
+�ndices Sugeridos:
+* INDEX(next_execution_at, is_active) para scheduler daemon
+* INDEX(workflow_definition_id) para gesti�n de schedules
+* INDEX(schedule_type) para an�lisis por tipo
+
+TABLA 81: WORKFLOW_TEMPLATES
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n (NULL = template global)
+3. template_name (varchar(100)) - Nombre del template
+4. template_category (varchar(50)) - Categor�a del template
+5. template_description (text) - Descripci�n detallada del template
+6. industry_specific (boolean, DEFAULT FALSE) - Si es espec�fico para cierta industria
+7. template_config (json) - Configuraci�n completa del workflow template
+8. usage_count (int, DEFAULT 0) - Veces que se ha usado este template
+9. success_rate (decimal(5,2)) - Tasa de �xito de workflows basados en este template
+10. ai_recommendation_score (decimal(5,2)) - Score de recomendaci�n AI (0-100)
+11. customization_complexity (varchar(20)) - Complejidad: 'LOW', 'MEDIUM', 'HIGH'
+12. estimated_setup_time_minutes (int) - Tiempo estimado de configuraci�n
+13. estimated_roi_percentage (decimal(5,2)) - ROI estimado del template
+14. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el template
+15. is_public (boolean, DEFAULT FALSE) - Si est� disponible p�blicamente
+16. rating_average (decimal(3,2)) - Rating promedio del template (1-5)
+17. total_ratings (int, DEFAULT 0) - Total de ratings recibidos
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Puede pertenecer a ORGANIZATIONS (organization_id)
+* Creado por CONTACTS (created_by_contact_id)
+* Base para crear WORKFLOW_DEFINITIONS
+�ndices Sugeridos:
+* INDEX(template_category, ai_recommendation_score) para recomendaciones
+* INDEX(industry_specific, is_public) para filtrado
+* INDEX(usage_count, success_rate) para popularidad
+
+TABLA 82: BUSINESS_RULES
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria de la regla
+3. rule_name (varchar(100)) - Nombre descriptivo de la regla
+4. rule_category (varchar(50)) - Categor�a: 'VALIDATION', 'AUTOMATION', 'ALERT', 'CLASSIFICATION'
+5. rule_type (varchar(30)) - Tipo: 'IF_THEN', 'SCORING', 'CLASSIFICATION', 'ML_PREDICTION'
+6. rule_expression (text) - L�gica de la regla en formato legible
+7. ai_enhanced (boolean, DEFAULT FALSE) - Si la regla usa AI para mejora continua
+8. rule_priority (int) - Prioridad de ejecuci�n (1=highest)
+9. applies_to_table (varchar(50)) - Tabla principal donde se aplica la regla
+10. applies_to_conditions (json) - Condiciones espec�ficas de aplicaci�n
+11. action_on_true (varchar(100)) - Acci�n cuando la regla eval�a como verdadera
+12. action_on_false (varchar(100)) - Acci�n cuando la regla eval�a como falsa
+13. related_workflow_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow relacionado (si aplica)
+14. success_rate (decimal(5,2)) - Tasa de �xito de la regla
+15. false_positive_rate (decimal(5,2)) - Tasa de falsos positivos
+16. is_active (boolean, DEFAULT TRUE) - Si la regla est� activa
+17. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� la regla
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, rule_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Pertenece a ORGANIZATIONS (organization_id)
+* Puede relacionarse con WORKFLOW_DEFINITIONS (related_workflow_id)
+* Creada por CONTACTS (created_by_contact_id)
+* Tiene m�ltiples RULE_CONDITIONS y RULE_ACTIONS
+�ndices Sugeridos:
+* INDEX(organization_id, is_active) para reglas activas
+* INDEX(applies_to_table) para aplicaci�n contextual
+* INDEX(rule_priority) para orden de ejecuci�n
+
+TABLA 83: RULE_CONDITIONS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. business_rule_id (int, FK ? BUSINESS_RULES) - Regla a la que pertenece
+3. condition_order (int) - Orden de evaluaci�n de la condici�n
+4. condition_type (varchar(30)) - Tipo: 'FIELD_COMPARISON', 'AI_MODEL', 'EXTERNAL_API', 'CALCULATED'
+5. field_name (varchar(50)) - Campo a evaluar
+6. operator (varchar(20)) - Operador: 'EQUALS', 'GREATER_THAN', 'CONTAINS', 'IN_RANGE'
+7. expected_value (varchar(255)) - Valor esperado para comparaci�n
+8. ai_model_id (int, FK ? ML_MODELS) - Modelo AI para condiciones basadas en ML
+9. weight (decimal(5,2)) - Peso de esta condici�n en la evaluaci�n total
+10. logical_operator (varchar(10)) - Operador l�gico: 'AND', 'OR', 'NOT'
+11. external_api_config (json) - Configuraci�n para APIs externas
+12. calculation_formula (text) - F�rmula para condiciones calculadas
+13. is_active (boolean, DEFAULT TRUE) - Si la condici�n est� activa
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Pertenece a BUSINESS_RULES (business_rule_id)
+* Puede usar ML_MODELS (ai_model_id)
+* Se eval�a en RULE_EXECUTIONS
+�ndices Sugeridos:
+* INDEX(business_rule_id, condition_order) para evaluaci�n secuencial
+* INDEX(condition_type) para an�lisis por tipo
+* INDEX(ai_model_id) para condiciones con AI
+
+TABLA 84: RULE_EXECUTIONS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. business_rule_id (int, FK ? BUSINESS_RULES) - Regla ejecutada
+3. context_table (varchar(50)) - Tabla donde se aplic� la regla
+4. context_id (int) - ID del registro evaluado
+5. rule_result (boolean) - Resultado de la evaluaci�n (true/false)
+6. ai_confidence_score (decimal(5,2)) - Nivel de confianza AI (0-100)
+7. execution_details (json) - Detalles completos de la ejecuci�n
+8. action_taken (varchar(100)) - Acci�n que se tom� basada en el resultado
+9. execution_time_ms (decimal(8,2)) - Tiempo de ejecuci�n en milisegundos
+10. ai_override_applied (boolean, DEFAULT FALSE) - Si AI anul� la regla original
+11. human_feedback (varchar(20)) - Feedback humano: 'CORRECT', 'INCORRECT', 'PARTIALLY_CORRECT'
+12. error_message (text) - Mensaje de error si la ejecuci�n fall�
+13. workflow_execution_id (int, FK ? WORKFLOW_EXECUTIONS) - Ejecuci�n de workflow relacionada
+14. executed_at (timestamp) - Timestamp de ejecuci�n
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Ejecuta BUSINESS_RULES (business_rule_id)
+* Puede ser parte de WORKFLOW_EXECUTIONS (workflow_execution_id)
+* Contexto en m�ltiples tablas (context_table/context_id)
+�ndices Sugeridos:
+* INDEX(business_rule_id, executed_at) para an�lisis temporal
+* INDEX(context_table, context_id) para tracking contextual
+* INDEX(rule_result, ai_confidence_score) para an�lisis de accuracy
+
+TABLA 85: RULE_ACTIONS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. business_rule_id (int, FK ? BUSINESS_RULES) - Regla a la que pertenece
+3. action_order (int) - Orden de ejecuci�n de la acci�n
+4. action_type (varchar(50)) - Tipo: 'SEND_NOTIFICATION', 'CREATE_TASK', 'UPDATE_FIELD', 'TRIGGER_WORKFLOW'
+5. action_config (json) - Configuraci�n espec�fica de la acci�n
+6. ai_optimized_parameters (json) - Par�metros optimizados por AI
+7. success_rate (decimal(5,2)) - Tasa de �xito de esta acci�n
+8. conditions_for_execution (json) - Condiciones adicionales para ejecutar la acci�n
+9. retry_on_failure (boolean, DEFAULT FALSE) - Si reintentar en caso de falla
+10. max_retries (int, DEFAULT 0) - M�ximo n�mero de reintentos
+11. is_async (boolean, DEFAULT FALSE) - Si la acci�n se ejecuta as�ncronamente
+12. timeout_seconds (int) - Timeout para la ejecuci�n de la acci�n
+13. is_active (boolean, DEFAULT TRUE) - Si la acci�n est� activa
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Pertenece a BUSINESS_RULES (business_rule_id)
+* Se ejecuta en RULE_EXECUTIONS
+* Puede disparar WORKFLOW_DEFINITIONS
+�ndices Sugeridos:
+* INDEX(business_rule_id, action_order) para ejecuci�n secuencial
+* INDEX(action_type) para an�lisis por tipo de acci�n
+* INDEX(success_rate) para optimizaci�n de performance
+
+TABLA 86: AUTOMATED_SEQUENCES
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. sequence_name (varchar(100)) - Nombre de la secuencia
+4. sequence_type (varchar(50)) - Tipo: 'COLLECTIONS', 'NURTURING', 'ONBOARDING', 'FOLLOW_UP'
+5. sequence_description (text) - Descripci�n de la secuencia
+6. target_audience (varchar(100)) - Audiencia objetivo de la secuencia
+7. enrollment_criteria (json) - Criterios para inscripci�n autom�tica
+8. ai_optimization_enabled (boolean, DEFAULT FALSE) - Si AI optimiza la secuencia
+9. ai_optimization_goals (json) - Objetivos de optimizaci�n AI
+10. timing_strategy (varchar(30)) - Estrategia: 'FIXED', 'OPTIMAL', 'AI_DETERMINED'
+11. success_metrics (json) - M�tricas para medir �xito
+12. exit_criteria (json) - Criterios para salir de la secuencia
+13. total_enrollments (int, DEFAULT 0) - Total de inscripciones hist�ricas
+14. success_rate (decimal(5,2)) - Tasa de �xito general
+15. is_active (boolean, DEFAULT TRUE) - Si la secuencia est� activa
+16. created_by_contact_id (int, FK ? CONTACTS) - Usuario creador
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, sequence_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Pertenece a ORGANIZATIONS (organization_id)
+* Creada por CONTACTS (created_by_contact_id)
+* Tiene m�ltiples SEQUENCE_ACTIONS
+* Registra SEQUENCE_ENROLLMENTS
+�ndices Sugeridos:
+* INDEX(organization_id, is_active) para secuencias activas
+* INDEX(sequence_type) para an�lisis por tipo
+* INDEX(success_rate) para an�lisis de performance
+
+TABLA 87: SEQUENCE_ENROLLMENTS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. automated_sequence_id (int, FK ? AUTOMATED_SEQUENCES) - Secuencia en la que est� inscrito
+3. contact_id (int, FK ? CONTACTS) - Contacto inscrito en la secuencia
+4. enrollment_source (varchar(50)) - Fuente: 'MANUAL', 'AUTOMATIC', 'API', 'WORKFLOW'
+5. enrollment_status (varchar(30)) - Estado: 'ACTIVE', 'PAUSED', 'COMPLETED', 'EXITED', 'FAILED'
+6. current_action_order (int) - Acci�n actual en la secuencia
+7. personalization_data (json) - Datos de personalizaci�n espec�ficos del contacto
+8. ai_personalization_score (decimal(5,2)) - Score de personalizaci�n AI
+9. engagement_score (decimal(5,2)) - Score de engagement del contacto
+10. next_action_scheduled_at (timestamp) - Cu�ndo est� programada la pr�xima acci�n
+11. last_action_executed_at (timestamp) - Cu�ndo se ejecut� la �ltima acci�n
+12. total_actions_executed (int, DEFAULT 0) - Total de acciones ejecutadas
+13. success_achieved (boolean, DEFAULT FALSE) - Si logr� el objetivo de la secuencia
+14. exit_reason (varchar(100)) - Raz�n de salida si aplica
+15. enrolled_at (timestamp) - Timestamp de inscripci�n
+16. completed_at (timestamp) - Timestamp de finalizaci�n
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(automated_sequence_id, contact_id) - Un contacto por secuencia
+Relaciones:
+* Pertenece a AUTOMATED_SEQUENCES (automated_sequence_id)
+* Inscribe a CONTACTS (contact_id)
+* Ejecuta SEQUENCE_ACTIONS
+�ndices Sugeridos:
+* INDEX(contact_id, enrollment_status) para tracking del contacto
+* INDEX(next_action_scheduled_at) para scheduler
+* INDEX(automated_sequence_id, enrollment_status) para an�lisis de secuencia
+
+TABLA 88: SEQUENCE_ACTIONS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. automated_sequence_id (int, FK ? AUTOMATED_SEQUENCES) - Secuencia a la que pertenece
+3. action_order (int) - Orden de la acci�n en la secuencia
+4. action_name (varchar(100)) - Nombre descriptivo de la acci�n
+5. action_type (varchar(50)) - Tipo: 'EMAIL', 'SMS', 'CALL', 'TASK', 'WAIT', 'CONDITION'
+6. delay_amount (int) - Cantidad de delay (en unidad especificada)
+7. delay_unit (varchar(20)) - Unidad: 'MINUTES', 'HOURS', 'DAYS', 'WEEKS'
+8. action_config (json) - Configuraci�n espec�fica de la acci�n
+9. ai_optimization_config (json) - Configuraci�n de optimizaci�n AI
+10. personalization_variables (json) - Variables para personalizaci�n
+11. success_criteria (json) - Criterios para considerar la acci�n exitosa
+12. alternative_actions (json) - Acciones alternativas basadas en respuesta
+13. branching_logic (json) - L�gica de branching condicional
+14. execution_rate (decimal(5,2)) - Tasa de ejecuci�n de esta acci�n
+15. success_rate (decimal(5,2)) - Tasa de �xito de esta acci�n
+16. is_active (boolean, DEFAULT TRUE) - Si la acci�n est� activa
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(automated_sequence_id, action_order) - Orden �nico por secuencia
+Relaciones:
+* Pertenece a AUTOMATED_SEQUENCES (automated_sequence_id)
+* Se ejecuta para SEQUENCE_ENROLLMENTS
+�ndices Sugeridos:
+* INDEX(automated_sequence_id, action_order) para ejecuci�n secuencial
+* INDEX(action_type) para an�lisis por tipo
+* INDEX(success_rate) para optimizaci�n
+
+TABLA 89: SEQUENCE_PERFORMANCE
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. automated_sequence_id (int, FK ? AUTOMATED_SEQUENCES) - Secuencia analizada
+3. sequence_enrollment_id (int, FK ? SEQUENCE_ENROLLMENTS) - Enrollment espec�fico (opcional)
+4. metric_name (varchar(100)) - Nombre de la m�trica
+5. metric_value (decimal(12,2)) - Valor de la m�trica
+6. metric_unit (varchar(50)) - Unidad de medida
+7. measurement_period_start (timestamp) - Inicio del per�odo de medici�n
+8. measurement_period_end (timestamp) - Final del per�odo de medici�n
+9. comparison_baseline (decimal(12,2)) - Baseline para comparaci�n
+10. performance_trend (varchar(20)) - Tendencia: 'IMPROVING', 'DECLINING', 'STABLE'
+11. ai_insights (json) - Insights generados por AI
+12. recommendations (json) - Recomendaciones de optimizaci�n
+13. data_source (varchar(50)) - Fuente de los datos de performance
+14. aggregation_level (varchar(30)) - Nivel: 'INDIVIDUAL', 'SEQUENCE', 'ORGANIZATION'
+15. confidence_interval (decimal(5,2)) - Intervalo de confianza estad�stica
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Analiza AUTOMATED_SEQUENCES (automated_sequence_id)
+* Puede ser espec�fico a SEQUENCE_ENROLLMENTS (sequence_enrollment_id)
+�ndices Sugeridos:
+* INDEX(automated_sequence_id, metric_name) para m�tricas espec�ficas
+* INDEX(measurement_period_start, measurement_period_end) para an�lisis temporal
+* INDEX(performance_trend) para an�lisis de tendencias
+
+TABLA 90: APPROVAL_WORKFLOWS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. workflow_name (varchar(100)) - Nombre del workflow de aprobaci�n
+4. approval_type (varchar(50)) - Tipo: 'SEQUENTIAL', 'PARALLEL', 'CONDITIONAL', 'AI_ASSISTED'
+5. applies_to_table (varchar(50)) - Tabla donde se aplica el approval
+6. trigger_criteria (json) - Criterios que disparan el approval
+7. ai_pre_screening (boolean, DEFAULT FALSE) - Si AI hace pre-screening
+8. ai_recommendation_weight (decimal(5,2)) - Peso de recomendaciones AI (0-100)
+9. escalation_rules (json) - Reglas de escalaci�n por tiempo
+10. auto_approval_criteria (json) - Criterios para aprobaci�n autom�tica
+11. sla_hours (int) - SLA en horas para completar approval
+12. notification_config (json) - Configuraci�n de notificaciones
+13. is_active (boolean, DEFAULT TRUE) - Si el workflow est� activo
+14. success_rate (decimal(5,2)) - Tasa de aprobaciones exitosas
+15. average_completion_hours (decimal(8,2)) - Tiempo promedio de completado
+16. created_by_contact_id (int, FK ? CONTACTS) - Usuario creador
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, workflow_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Pertenece a ORGANIZATIONS (organization_id)
+* Creado por CONTACTS (created_by_contact_id)
+* Tiene m�ltiples APPROVAL_STAGES
+* Genera APPROVAL_REQUESTS
+�ndices Sugeridos:
+* INDEX(organization_id, is_active) para workflows activos
+* INDEX(applies_to_table) para aplicaci�n contextual
+* INDEX(success_rate) para an�lisis de performance
+
+TABLA 91: APPROVAL_REQUESTS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. approval_workflow_id (int, FK ? APPROVAL_WORKFLOWS) - Workflow de aprobaci�n
+3. request_key (varchar(100)) - Clave �nica para tracking
+4. context_table (varchar(50)) - Tabla del item a aprobar
+5. context_id (int) - ID del item a aprobar
+6. requested_by_contact_id (int, FK ? CONTACTS) - Usuario que solicit� aprobaci�n
+7. request_status (varchar(30)) - Estado: 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ESCALATED'
+8. current_stage_id (int, FK ? APPROVAL_STAGES) - Stage actual del approval
+9. request_data (json) - Datos del request y contexto
+10. ai_recommendation (varchar(20)) - Recomendaci�n AI: 'APPROVE', 'REJECT', 'REVIEW'
+11. ai_confidence_score (decimal(5,2)) - Nivel de confianza AI (0-100)
+12. ai_reasoning (text) - Explicaci�n del razonamiento AI
+13. urgency_level (varchar(20)) - Urgencia: 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+14. business_justification (text) - Justificaci�n del negocio
+15. estimated_impact (json) - Impacto estimado de la aprobaci�n
+16. final_decision (varchar(20)) - Decisi�n final: 'APPROVED', 'REJECTED'
+17. final_decision_by_contact_id (int, FK ? CONTACTS) - Usuario que tom� decisi�n final
+18. decision_reasoning (text) - Razonamiento de la decisi�n final
+19. requested_at (timestamp) - Timestamp de la solicitud
+20. completed_at (timestamp) - Timestamp de finalizaci�n
+21. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+22. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(request_key) - Clave �nica globalmente
+Relaciones:
+* Usa APPROVAL_WORKFLOWS (approval_workflow_id)
+* Solicitado por CONTACTS (requested_by_contact_id)
+* Est� en APPROVAL_STAGES (current_stage_id)
+* Decidido por CONTACTS (final_decision_by_contact_id)
+* Contexto en m�ltiples tablas (context_table/context_id)
+�ndices Sugeridos:
+* INDEX(approval_workflow_id, request_status) para tracking
+* INDEX(context_table, context_id) para items espec�ficos
+* INDEX(requested_at, urgency_level) para priorizaci�n
+
+TABLA 92: APPROVAL_STAGES
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. approval_workflow_id (int, FK ? APPROVAL_WORKFLOWS) - Workflow al que pertenece
+3. stage_order (int) - Orden del stage en el workflow
+4. stage_name (varchar(100)) - Nombre del stage
+5. stage_type (varchar(30)) - Tipo: 'INDIVIDUAL', 'GROUP', 'ROLE_BASED', 'AI_ASSISTED'
+6. approver_contact_id (int, FK ? CONTACTS) - Aprobador espec�fico (si aplica)
+7. approver_role_id (int, FK ? ROLES) - Rol que puede aprobar (si aplica)
+8. required_approvals (int, DEFAULT 1) - N�mero de aprobaciones requeridas
+9. approval_criteria (json) - Criterios espec�ficos de aprobaci�n
+10. ai_assistance_level (varchar(20)) - Nivel de AI: 'NONE', 'ADVISORY', 'DECISIVE'
+11. timeout_hours (int) - Timeout para este stage
+12. escalation_contact_id (int, FK ? CONTACTS) - Contacto para escalaci�n
+13. auto_approve_conditions (json) - Condiciones para auto-aprobaci�n
+14. delegation_rules (json) - Reglas de delegaci�n de autoridad
+15. is_parallel (boolean, DEFAULT FALSE) - Si se ejecuta en paralelo
+16. is_optional (boolean, DEFAULT FALSE) - Si el stage es opcional
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(approval_workflow_id, stage_order) - Orden �nico por workflow
+Relaciones:
+* Pertenece a APPROVAL_WORKFLOWS (approval_workflow_id)
+* Puede tener aprobador en CONTACTS (approver_contact_id)
+* Puede requerir ROLES (approver_role_id)
+* Puede escalar a CONTACTS (escalation_contact_id)
+�ndices Sugeridos:
+* INDEX(approval_workflow_id, stage_order) para ejecuci�n secuencial
+* INDEX(approver_contact_id) para workload del aprobador
+* INDEX(approver_role_id) para aprobaciones por rol
+
+TABLA 93: WORKFLOW_INTEGRATIONS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. integration_name (varchar(100)) - Nombre de la integraci�n
+4. integration_type (varchar(50)) - Tipo: 'API', 'WEBHOOK', 'DATABASE', 'EMAIL', 'SMS'
+5. provider_name (varchar(100)) - Nombre del proveedor (Gmail, Slack, etc.)
+6. connection_config (json) - Configuraci�n de conexi�n (encriptada)
+7. authentication_type (varchar(30)) - Tipo: 'API_KEY', 'OAUTH', 'BASIC', 'BEARER'
+8. authentication_config (json) - Configuraci�n de autenticaci�n (encriptada)
+9. rate_limit_config (json) - Configuraci�n de rate limiting
+10. retry_policy (json) - Pol�tica de reintentos
+11. data_mapping_config (json) - Configuraci�n de mapeo de datos
+12. webhook_verification_token (varchar(255)) - Token para verificar webhooks
+13. is_active (boolean, DEFAULT TRUE) - Si la integraci�n est� activa
+14. last_successful_connection (timestamp) - �ltima conexi�n exitosa
+15. total_api_calls (int, DEFAULT 0) - Total de llamadas API realizadas
+16. success_rate (decimal(5,2)) - Tasa de �xito de las llamadas
+17. health_status (varchar(20)) - Estado: 'HEALTHY', 'DEGRADED', 'DOWN'
+18. created_by_contact_id (int, FK ? CONTACTS) - Usuario que configur�
+19. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+20. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, integration_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Pertenece a ORGANIZATIONS (organization_id)
+* Configurada por CONTACTS (created_by_contact_id)
+* Tiene m�ltiples INTEGRATION_MAPPINGS
+* Registra actividad en API_CALLS_LOG
+
+�ndices Sugeridos:
+* INDEX(organization_id, is_active) para integraciones activas
+* INDEX(provider_name) para an�lisis por proveedor
+* INDEX(health_status) para monitoreo
+
+TABLA 94: WEBHOOK_ENDPOINTS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_integration_id (int, FK ? WORKFLOW_INTEGRATIONS) - Integraci�n propietaria
+3. endpoint_url (varchar(500)) - URL del webhook endpoint
+4. endpoint_method (varchar(10)) - M�todo HTTP: 'POST', 'PUT', 'GET'
+5. event_types (json) - Tipos de eventos que maneja este endpoint
+6. payload_template (json) - Template del payload a enviar
+7. headers_config (json) - Headers HTTP a incluir
+8. security_config (json) - Configuraci�n de seguridad (signatures, etc.)
+9. retry_config (json) - Configuraci�n de reintentos
+10. timeout_seconds (int, DEFAULT 30) - Timeout para el webhook
+11. is_active (boolean, DEFAULT TRUE) - Si el endpoint est� activo
+12. success_rate (decimal(5,2)) - Tasa de �xito del endpoint
+13. average_response_time_ms (decimal(8,2)) - Tiempo promedio de respuesta
+14. last_successful_call (timestamp) - �ltima llamada exitosa
+15. total_calls_sent (int, DEFAULT 0) - Total de llamadas enviadas
+16. total_failures (int, DEFAULT 0) - Total de fallas
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Pertenece a WORKFLOW_INTEGRATIONS (workflow_integration_id)
+* Registra llamadas en API_CALLS_LOG
+�ndices Sugeridos:
+* INDEX(workflow_integration_id) para gesti�n de endpoints
+* INDEX(is_active, success_rate) para monitoreo
+* INDEX(last_successful_call) para health checks
+
+TABLA 95: API_CALLS_LOG
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_integration_id (int, FK ? WORKFLOW_INTEGRATIONS) - Integraci�n que hizo la llamada
+3. webhook_endpoint_id (int, FK ? WEBHOOK_ENDPOINTS) - Endpoint espec�fico (si aplica)
+4. workflow_execution_id (int, FK ? WORKFLOW_EXECUTIONS) - Ejecuci�n relacionada (si aplica)
+5. call_type (varchar(30)) - Tipo: 'OUTBOUND', 'INBOUND', 'WEBHOOK'
+6. api_method (varchar(10)) - M�todo HTTP usado
+7. api_url (varchar(500)) - URL de la API llamada
+8. request_headers (json) - Headers de la request
+9. request_payload (json) - Payload enviado
+10. response_status_code (int) - C�digo de status HTTP de respuesta
+11. response_headers (json) - Headers de la respuesta
+12. response_payload (json) - Payload de respuesta
+13. response_time_ms (decimal(8,2)) - Tiempo de respuesta en milisegundos
+14. error_message (text) - Mensaje de error si la llamada fall�
+15. retry_attempt (int, DEFAULT 0) - N�mero de intento de retry
+16. is_successful (boolean) - Si la llamada fue exitosa
+17. called_at (timestamp) - Timestamp de la llamada
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Registra llamadas de WORKFLOW_INTEGRATIONS (workflow_integration_id)
+* Puede ser de WEBHOOK_ENDPOINTS (webhook_endpoint_id)
+* Puede estar en WORKFLOW_EXECUTIONS (workflow_execution_id)
+�ndices Sugeridos:
+* INDEX(workflow_integration_id, called_at) para an�lisis temporal
+* INDEX(is_successful, response_status_code) para an�lisis de errores
+* INDEX(called_at) para purging de logs antiguos
+
+TABLA 96: INTEGRATION_MAPPINGS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_integration_id (int, FK ? WORKFLOW_INTEGRATIONS) - Integraci�n a la que pertenece
+3. source_field (varchar(100)) - Campo fuente en el sistema externo
+4. target_table (varchar(50)) - Tabla destino en nuestro sistema
+5. target_field (varchar(100)) - Campo destino en nuestra tabla
+6. mapping_type (varchar(20)) - Tipo: 'DIRECT', 'TRANSFORMATION', 'CALCULATED', 'LOOKUP'
+7. transformation_rules (json) - Reglas de transformaci�n de datos
+8. ai_mapping_confidence (decimal(5,2)) - Confianza AI en el mapeo (0-100)
+9. validation_rules (json) - Reglas de validaci�n del mapeo
+10. is_required (boolean, DEFAULT FALSE) - Si el mapeo es requerido
+11. default_value (varchar(255)) - Valor por defecto si la fuente est� vac�a
+12. data_type_conversion (varchar(50)) - Conversi�n de tipo de dato requerida
+13. lookup_table (varchar(50)) - Tabla de lookup para mappings complejos
+14. lookup_key_field (varchar(100)) - Campo clave para lookup
+15. is_bidirectional (boolean, DEFAULT FALSE) - Si el mapeo funciona en ambas direcciones
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Pertenece a WORKFLOW_INTEGRATIONS (workflow_integration_id)
+* Mapea a m�ltiples tablas del sistema (target_table)
+�ndices Sugeridos:
+* INDEX(workflow_integration_id, target_table) para mappings por integraci�n
+* INDEX(mapping_type) para an�lisis por tipo
+* INDEX(is_required) para validaci�n de mappings cr�ticos
+
+TABLA 97: ERROR_HANDLING_LOG
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_execution_id (int, FK ? WORKFLOW_EXECUTIONS) - Ejecuci�n donde ocurri� el error
+3. workflow_step_id (int, FK ? WORKFLOW_STEPS) - Step espec�fico con error (si aplica)
+4. error_type (varchar(50)) - Tipo: 'TIMEOUT', 'API_ERROR', 'VALIDATION_ERROR', 'SYSTEM_ERROR'
+5. error_code (varchar(20)) - C�digo espec�fico del error
+6. error_message (text) - Mensaje de error legible
+7. error_details (json) - Detalles t�cnicos completos del error
+8. stack_trace (text) - Stack trace del error (si disponible)
+9. retry_strategy (varchar(30)) - Estrategia: 'IMMEDIATE', 'EXPONENTIAL_BACKOFF', 'MANUAL', 'NONE'
+10. retry_count (int, DEFAULT 0) - N�mero de reintentos realizados
+11. max_retries (int) - M�ximo de reintentos configurado
+12. resolution_status (varchar(20)) - Estado: 'PENDING', 'RESOLVED', 'ESCALATED', 'IGNORED'
+13. ai_error_classification (varchar(50)) - Clasificaci�n autom�tica por AI
+14. ai_resolution_suggestion (text) - Sugerencia de resoluci�n por AI
+15. human_resolution_notes (text) - Notas de resoluci�n manual
+16. impact_level (varchar(20)) - Impacto: 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+17. occurred_at (timestamp) - Timestamp del error
+18. resolved_at (timestamp) - Timestamp de resoluci�n
+19. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Registra errores de WORKFLOW_EXECUTIONS (workflow_execution_id)
+* Puede ser espec�fico a WORKFLOW_STEPS (workflow_step_id)
+�ndices Sugeridos:
+* INDEX(workflow_execution_id, occurred_at) para tracking temporal
+* INDEX(error_type, resolution_status) para an�lisis de errores
+* INDEX(impact_level, occurred_at) para escalaci�n de problemas cr�ticos
+
+TABLA 98: ML_MODELS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. model_name (varchar(100)) - Nombre descriptivo del modelo
+3. model_type (varchar(30)) - Tipo: 'CLASSIFICATION', 'REGRESSION', 'NLP', 'COMPUTER_VISION', 'CLUSTERING'
+4. model_purpose (varchar(100)) - Prop�sito: 'COLLECTIONS_OPTIMIZATION', 'LEAD_SCORING', 'FRAUD_DETECTION'
+5. model_version (varchar(20)) - Versi�n del modelo
+6. training_data_source (varchar(100)) - Fuente de datos de entrenamiento
+7. model_accuracy (decimal(5,2)) - Accuracy del modelo (0-100)
+8. model_precision (decimal(5,2)) - Precision del modelo (0-100)
+9. model_recall (decimal(5,2)) - Recall del modelo (0-100)
+10. f1_score (decimal(5,2)) - F1 Score del modelo (0-100)
+11. model_file_path (varchar(500)) - Path al archivo del modelo en S3
+12. model_config (json) - Configuraci�n espec�fica del modelo
+13. feature_importance (json) - Importancia de las features del modelo
+14. training_parameters (json) - Par�metros usados en el entrenamiento
+15. training_date (timestamp) - Timestamp del entrenamiento
+16. last_evaluation_date (timestamp) - �ltima evaluaci�n del modelo
+17. next_retrain_date (timestamp) - Pr�ximo reentrenamiento programado
+18. is_active (boolean, DEFAULT TRUE) - Si el modelo est� activo para predicciones
+19. deployment_status (varchar(20)) - Estado: 'TRAINING', 'DEPLOYED', 'DEPRECATED', 'TESTING'
+20. performance_baseline (decimal(5,2)) - Baseline de performance para comparaci�n
+21. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+22. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(model_name, model_version) - Nombres y versiones �nicos
+Relaciones:
+* Usado por WORKFLOW_STEPS (ai_model_id)
+* Usado por RULE_CONDITIONS (ai_model_id)
+* Genera insights en WORKFLOW_AI_INSIGHTS
+�ndices Sugeridos:
+* INDEX(model_type, is_active) para modelos activos por tipo
+* INDEX(model_purpose) para b�squeda por prop�sito
+* INDEX(deployment_status) para gesti�n de modelos
+
+TABLA 99: WORKFLOW_AI_INSIGHTS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_definition_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow analizado (opcional)
+3. workflow_execution_id (int, FK ? WORKFLOW_EXECUTIONS) - Ejecuci�n espec�fica (opcional)
+4. insight_type (varchar(50)) - Tipo: 'OPTIMIZATION', 'ANOMALY', 'PREDICTION', 'PERFORMANCE', 'BOTTLENECK'
+5. ml_model_id (int, FK ? ML_MODELS) - Modelo que gener� el insight
+6. confidence_score (decimal(5,2)) - Nivel de confianza del insight (0-100)
+7. insight_title (varchar(200)) - T�tulo del insight
+8. insight_description (text) - Descripci�n detallada del insight
+9. data_analyzed (json) - Datos que fueron analizados
+10. recommended_actions (json) - Acciones recomendadas basadas en el insight
+11. potential_impact (varchar(100)) - Impacto potencial del insight
+12. impact_quantification (json) - Cuantificaci�n del impacto (ROI, tiempo, etc.)
+13. implementation_complexity (varchar(20)) - Complejidad: 'LOW', 'MEDIUM', 'HIGH'
+14. priority_score (decimal(5,2)) - Score de prioridad del insight (0-100)
+15. status (varchar(30)) - Estado: 'NEW', 'REVIEWED', 'IMPLEMENTED', 'DISMISSED'
+16. reviewed_by_contact_id (int, FK ? CONTACTS) - Usuario que revis� el insight
+17. implementation_notes (text) - Notas de implementaci�n
+18. generated_at (timestamp) - Timestamp de generaci�n del insight
+19. reviewed_at (timestamp) - Timestamp de revisi�n
+20. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Puede analizar WORKFLOW_DEFINITIONS (workflow_definition_id)
+* Puede analizar WORKFLOW_EXECUTIONS (workflow_execution_id)
+* Generado por ML_MODELS (ml_model_id)
+* Revisado por CONTACTS (reviewed_by_contact_id)
+�ndices Sugeridos:
+* INDEX(workflow_definition_id, insight_type) para insights por workflow
+* INDEX(priority_score, status) para priorizaci�n
+* INDEX(generated_at) para an�lisis temporal
+
+TABLA 100: WORKFLOW_PERFORMANCE_ANALYTICS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_definition_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow analizado
+3. analysis_period_start (timestamp) - Inicio del per�odo de an�lisis
+4. analysis_period_end (timestamp) - Final del per�odo de an�lisis
+5. total_executions (int) - Total de ejecuciones en el per�odo
+6. successful_executions (int) - Ejecuciones exitosas
+7. failed_executions (int) - Ejecuciones fallidas
+8. success_rate (decimal(5,2)) - Tasa de �xito (0-100)
+9. average_execution_time_minutes (decimal(8,2)) - Tiempo promedio de ejecuci�n
+10. median_execution_time_minutes (decimal(8,2)) - Tiempo mediano de ejecuci�n
+11. fastest_execution_time_minutes (decimal(8,2)) - Ejecuci�n m�s r�pida
+12. slowest_execution_time_minutes (decimal(8,2)) - Ejecuci�n m�s lenta
+13. bottleneck_step_id (int, FK ? WORKFLOW_STEPS) - Step que causa m�s delays
+14. bottleneck_analysis (json) - An�lisis detallado de bottlenecks
+15. cost_per_execution (decimal(10,2)) - Costo promedio por ejecuci�n
+16. total_cost_period (decimal(10,2)) - Costo total del per�odo
+17. roi_percentage (decimal(5,2)) - ROI del workflow en el per�odo
+18. user_satisfaction_score (decimal(3,2)) - Score de satisfacci�n (1-5)
+19. optimization_opportunities (json) - Oportunidades de optimizaci�n identificadas
+20. performance_trend (varchar(20)) - Tendencia: 'IMPROVING', 'DECLINING', 'STABLE'
+21. benchmark_comparison (json) - Comparaci�n con benchmarks de la industria
+22. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+23. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Analiza WORKFLOW_DEFINITIONS (workflow_definition_id)
+* Identifica bottlenecks en WORKFLOW_STEPS (bottleneck_step_id)
+�ndices Sugeridos:
+* INDEX(workflow_definition_id, analysis_period_start) para an�lisis temporal
+* INDEX(success_rate, roi_percentage) para ranking de performance
+* INDEX(performance_trend) para identificar workflows en decline
+
+TABLA 101: BOTTLENECK_ANALYSIS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_definition_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow analizado
+3. workflow_step_id (int, FK ? WORKFLOW_STEPS) - Step espec�fico analizado
+4. analysis_date (timestamp) - Fecha del an�lisis
+5. bottleneck_type (varchar(50)) - Tipo: 'TIME_DELAY', 'RESOURCE_CONSTRAINT', 'APPROVAL_DELAY', 'API_THROTTLING'
+6. severity_level (varchar(20)) - Severidad: 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+7. average_delay_minutes (decimal(8,2)) - Delay promedio causado por este bottleneck
+8. frequency_percentage (decimal(5,2)) - Frecuencia del bottleneck (0-100)
+9. impact_on_sla (decimal(5,2)) - Impacto en SLA (porcentaje)
+10. root_cause_analysis (json) - An�lisis de causa ra�z
+11. contributing_factors (json) - Factores que contribuyen al bottleneck
+12. recommended_solutions (json) - Soluciones recomendadas por AI
+13. implementation_priority (int) - Prioridad de implementaci�n (1-10)
+14. estimated_cost_savings (decimal(10,2)) - Ahorros estimados al resolver
+15. estimated_time_savings_minutes (decimal(8,2)) - Tiempo ahorrado estimado
+16. affected_executions_count (int) - N�mero de ejecuciones afectadas
+17. resolution_status (varchar(30)) - Estado: 'IDENTIFIED', 'IN_PROGRESS', 'RESOLVED', 'DEFERRED'
+18. resolution_notes (text) - Notas sobre la resoluci�n
+19. resolved_at (timestamp) - Timestamp de resoluci�n
+20. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Analiza WORKFLOW_DEFINITIONS (workflow_definition_id)
+* Espec�fico a WORKFLOW_STEPS (workflow_step_id)
+
+�ndices Sugeridos:
+* INDEX(workflow_definition_id, severity_level) para priorizaci�n
+* INDEX(resolution_status, implementation_priority) para gesti�n
+* INDEX(analysis_date) para trending de bottlenecks
+
+TABLA 102: NL_WORKFLOW_REQUESTS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que hace el request
+3. requested_by_contact_id (int, FK ? CONTACTS) - Usuario que hizo el request
+4. natural_language_input (text) - Input en lenguaje natural del usuario
+5. processed_intent (json) - Intent procesado por NLP
+6. extracted_entities (json) - Entidades extra�das del texto
+7. confidence_score (decimal(5,2)) - Confianza en la interpretaci�n (0-100)
+8. generated_workflow_config (json) - Configuraci�n de workflow generada
+9. processing_status (varchar(30)) - Estado: 'PROCESSING', 'COMPLETED', 'FAILED', 'REQUIRES_CLARIFICATION'
+10. clarification_questions (json) - Preguntas para clarificar ambig�edades
+11. user_feedback (varchar(20)) - Feedback: 'ACCURATE', 'PARTIALLY_CORRECT', 'INCORRECT'
+12. refinement_iterations (int, DEFAULT 0) - N�mero de iteraciones de refinamiento
+13. final_workflow_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow final creado
+14. ai_model_version (varchar(20)) - Versi�n del modelo NLP usado
+15. processing_time_seconds (decimal(6,2)) - Tiempo de procesamiento
+16. complexity_score (decimal(5,2)) - Score de complejidad del request (0-100)
+17. processed_at (timestamp) - Timestamp de procesamiento
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Pertenece a ORGANIZATIONS (organization_id)
+* Solicitado por CONTACTS (requested_by_contact_id)
+* Puede generar WORKFLOW_DEFINITIONS (final_workflow_id)
+�ndices Sugeridos:
+* INDEX(organization_id, processing_status) para tracking de requests
+* INDEX(confidence_score, user_feedback) para mejora del modelo
+* INDEX(processed_at) para an�lisis temporal de uso
+
+TABLA 103: WORKFLOW_OPTIMIZATION_SUGGESTIONS
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. workflow_definition_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow a optimizar
+3. suggestion_type (varchar(50)) - Tipo: 'STEP_REORDER', 'PARALLEL_EXECUTION', 'CONDITION_OPTIMIZATION', 'RESOURCE_ALLOCATION'
+4. suggestion_title (varchar(200)) - T�tulo de la sugerencia
+5. suggestion_description (text) - Descripci�n detallada de la optimizaci�n
+6. current_performance_metrics (json) - M�tricas actuales de performance
+7. projected_improvements (json) - Mejoras proyectadas con la optimizaci�n
+8. confidence_level (decimal(5,2)) - Nivel de confianza en la mejora (0-100)
+9. implementation_complexity (varchar(20)) - Complejidad: 'LOW', 'MEDIUM', 'HIGH'
+10. estimated_implementation_hours (decimal(6,2)) - Horas estimadas de implementaci�n
+11. projected_time_savings_percentage (decimal(5,2)) - Ahorro de tiempo proyectado
+12. projected_cost_savings (decimal(10,2)) - Ahorro de costo proyectado
+13. risk_assessment (json) - Evaluaci�n de riesgos de la implementaci�n
+14. prerequisite_changes (json) - Cambios prerequisito necesarios
+15. impact_on_other_workflows (json) - Impacto en otros workflows
+16. suggestion_status (varchar(30)) - Estado: 'PROPOSED', 'UNDER_REVIEW', 'APPROVED', 'IMPLEMENTED', 'REJECTED'
+17. reviewed_by_contact_id (int, FK ? CONTACTS) - Usuario que revis� la sugerencia
+18. implementation_notes (text) - Notas de implementaci�n
+19. ai_model_id (int, FK ? ML_MODELS) - Modelo que gener� la sugerencia
+20. generated_at (timestamp) - Timestamp de generaci�n de la sugerencia
+21. reviewed_at (timestamp) - Timestamp de revisi�n
+22. implemented_at (timestamp) - Timestamp de implementaci�n
+23. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Optimiza WORKFLOW_DEFINITIONS (workflow_definition_id)
+* Revisado por CONTACTS (reviewed_by_contact_id)
+* Generado por ML_MODELS (ai_model_id)
+�ndices Sugeridos:
+* INDEX(workflow_definition_id, suggestion_status) para gesti�n de sugerencias
+* INDEX(projected_cost_savings, confidence_level) para priorizaci�n ROI
+* INDEX(generated_at, suggestion_status) para tracking temporal
+
+TABLA 104: PREDICTIVE_MAINTENANCE
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. target_type (varchar(50)) - Tipo de target: 'WORKFLOW', 'INTEGRATION', 'SYSTEM_COMPONENT'
+3. target_id (int) - ID del target (workflow_id, integration_id, etc.)
+4. prediction_type (varchar(50)) - Tipo: 'FAILURE_PREDICTION', 'PERFORMANCE_DEGRADATION', 'RESOURCE_EXHAUSTION'
+5. prediction_model_id (int, FK ? ML_MODELS) - Modelo predictivo usado
+6. risk_score (decimal(5,2)) - Score de riesgo (0-100)
+7. probability_of_failure (decimal(5,2)) - Probabilidad de falla (0-100)
+8. predicted_failure_timeframe (varchar(50)) - Timeframe: 'IMMEDIATE', 'WITHIN_24H', 'WITHIN_WEEK', 'WITHIN_MONTH'
+9. contributing_factors (json) - Factores que contribuyen al riesgo
+10. historical_patterns (json) - Patrones hist�ricos identificados
+11. recommended_actions (json) - Acciones preventivas recomendadas
+12. action_urgency (varchar(20)) - Urgencia: 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+13. estimated_downtime_if_failure (decimal(8,2)) - Downtime estimado en minutos
+14. estimated_cost_if_failure (decimal(10,2)) - Costo estimado de la falla
+15. prevention_cost_estimate (decimal(10,2)) - Costo de prevenci�n estimado
+16. prediction_accuracy_historical (decimal(5,2)) - Accuracy hist�rica del modelo
+17. alert_sent (boolean, DEFAULT FALSE) - Si se envi� alerta
+18. alert_sent_at (timestamp) - Timestamp del env�o de alerta
+19. maintenance_scheduled (boolean, DEFAULT FALSE) - Si se program� mantenimiento
+20. maintenance_completed (boolean, DEFAULT FALSE) - Si se complet� mantenimiento
+21. actual_outcome (varchar(50)) - Outcome real: 'FAILURE_OCCURRED', 'PREVENTED', 'FALSE_POSITIVE'
+22. predicted_at (timestamp) - Timestamp de la predicci�n
+23. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+24. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Predice para m�ltiples tipos de targets (target_type/target_id)
+* Usa ML_MODELS (prediction_model_id)
+�ndices Sugeridos:
+* INDEX(target_type, target_id, risk_score) para monitoreo por target
+* INDEX(action_urgency, alert_sent) para alertas pendientes
+* INDEX(predicted_failure_timeframe) para priorizaci�n temporal
+
+TABLA 105: AI_TRAINING_DATA
+M�dulo: WORKFLOWS & AUTOMATION ENGINE + AI
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. ml_model_id (int, FK ? ML_MODELS) - Modelo para el cual es training data
+3. data_source_table (varchar(50)) - Tabla fuente de los datos
+4. data_source_id (int) - ID del registro fuente
+5. feature_vector (json) - Vector de features para training
+6. target_variable (json) - Variable objetivo/label
+7. data_quality_score (decimal(5,2)) - Score de calidad de los datos (0-100)
+8. is_labeled (boolean, DEFAULT FALSE) - Si los datos est�n etiquetados
+9. labeling_source (varchar(30)) - Fuente: 'HUMAN', 'AUTOMATED', 'SEMI_SUPERVISED'
+10. labeling_confidence (decimal(5,2)) - Confianza en el labeling (0-100)
+11. labeled_by_contact_id (int, FK ? CONTACTS) - Usuario que etiquet� (si aplica)
+12. training_set_split (varchar(20)) - Split: 'TRAIN', 'VALIDATION', 'TEST'
+13. data_version (varchar(20)) - Versi�n del dataset
+14. feature_importance_weights (json) - Pesos de importancia de features
+15. data_preprocessing_applied (json) - Preprocesamiento aplicado
+16. anomaly_detection_score (decimal(5,2)) - Score de detecci�n de anomal�as
+17. is_outlier (boolean, DEFAULT FALSE) - Si es considerado outlier
+18. cross_validation_performance (json) - Performance en cross-validation
+19. data_lineage (json) - Lineage de los datos (transformaciones aplicadas)
+20. privacy_classification (varchar(30)) - Clasificaci�n: 'PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'PII'
+21. retention_policy_days (int) - D�as de retenci�n de los datos
+22. collected_at (timestamp) - Timestamp de recolecci�n original
+23. labeled_at (timestamp) - Timestamp de etiquetado
+24. last_used_for_training (timestamp) - �ltima vez usado para training
+25. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+26. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* Entrena ML_MODELS (ml_model_id)
+* Fuente en m�ltiples tablas (data_source_table/data_source_id)
+* Etiquetado por CONTACTS (labeled_by_contact_id)
+�ndices Sugeridos:
+* INDEX(ml_model_id, training_set_split) para datasets por modelo
+* INDEX(data_quality_score, is_labeled) para selecci�n de datos de calidad
+* INDEX(privacy_classification) para compliance de datos
+* INDEX(retention_policy_days, collected_at) para data governance
