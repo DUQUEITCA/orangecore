@@ -1,3 +1,5 @@
+/-o-/
+
 1.1 CONTACTOS Y PERSONAS (6 TABLAS)
 ## TABLA 1: CONTACTS M�dulo: BASE FOUNDATION
 Campos:
@@ -10200,8 +10202,6 @@ Valor Business:
 * Financial-Ready: Preparado para bookkeeping automatizado
 * Analytics-Ready: Data estructurada para business intelligence
 
-
-
 RESUMEN DEL M�DULO: WORKFLOWS & AUTOMATION ENGINE + AI
 Total de Tablas: 30
 Funcionalidades Clave:
@@ -10246,19 +10246,6 @@ Casos de Uso Espec�ficos Construction:
 3. Insurance Claim Workflows: New claim ? Inspection scheduling ? AI estimate ? Adjuster submission
 4. Natural Language Creation: "Send follow-up emails after job completion" ? AI parsing ? Workflow generation
 5. Predictive Maintenance: System monitoring ? Failure prediction ? Preventive alerts ? Downtime prevention
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 RESUMEN DEL M�DULO 3: FINANZAS & BOOKKEEPING
 COMPLETADO: 63 TABLAS IMPLEMENTADAS

@@ -1,0 +1,2014 @@
+/-o-/
+
+1.1 CONTACTOS Y PERSONAS (6 TABLAS)
+## TABLA 1: CONTACTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. is_company (boolean, DEFAULT FALSE) - Discriminador: FALSE=persona, TRUE=empresa
+3. name (varchar(100)) - Primer nombre (personas) o nombre de empresa (companies)
+4. last_name (varchar(100)) - Apellido para personas, NULL para empresas
+5. full_name (varchar(200)) - Campo calculado para b�squedas optimizadas
+6. lead_status_id (int, FK ? LEAD_STATUSES) - Estado del lead en funnel de ventas
+7. lead_source_id (int, FK ? LEAD_SOURCES) - Fuente de generaci�n del lead
+8. assigned_salesperson_id (int, FK ? CONTACTS) - Auto-referencia para door-to-door assignment
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+10. created_by (varchar(50)) - Usuario que cre� el registro
+11. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+12. updated_by (varchar(50)) - Usuario que actualiz� por �ltima vez
+Restricciones �nicas:
+* Ninguna (permite duplicados controlados por business logic)
+Relaciones:
+* Auto-referencia para assignment de sales reps
+* Extensi�n 1:1 con PERSONS y COMPANIES
+* Relaci�n 1:1 con USERS para autenticaci�n
+* Relaci�n 1:N con PHONES, EMAILS, AVATARS
+�ndices Sugeridos:
+* idx_contacts_full_name - Para b�squedas de texto
+* idx_contacts_salesperson - Para queries de asignaci�n
+* idx_contacts_company_flag - Para filtros por tipo
+
+## TABLA 2: PERSONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS, UNIQUE) - Referencia 1:1 al contacto base
+3. gender (varchar(30)) - 'male', 'female', 'other', 'prefer_not_to_say'
+4. birth_date (date) - Fecha de nacimiento para c�lculos de edad
+5. tax_id (varchar(20)) - SSN en USA, equivalente en otros pa�ses
+6. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+7. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id) - Un contacto solo puede ser una persona
+Relaciones:
+* Relaci�n 1:1 con CONTACTS para extensi�n de datos personales
+�ndices Sugeridos:
+* idx_persons_birth_date - Para reportes demogr�ficos
+* idx_persons_tax_id - Para verificaci�n fiscal
+
+## TABLA 3: COMPANIES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS, UNIQUE) - Referencia 1:1 al contacto base
+3. company_name (varchar(200)) - Nombre legal completo de la empresa
+4. founded_date (date) - Fecha de fundaci�n/incorporaci�n
+5. tax_id (varchar(20)) - EIN en USA, equivalente fiscal en otros pa�ses
+6. legal_entity_type (varchar(50)) - 'LLC', 'Corp', 'Partnership', 'Sole Proprietorship'
+7. industry (varchar(100)) - 'Construction', 'Roofing', 'Windows', 'HVAC', etc.
+8. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id) - Un contacto solo puede ser una empresa
+Relaciones:
+* Relaci�n 1:1 con CONTACTS para extensi�n de datos empresariales
+�ndices Sugeridos:
+* idx_companies_industry - Para an�lisis por sector
+* idx_companies_entity_type - Para reportes legales
+
+## TABLA 4: PHONES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Referencia al contacto propietario
+3. country_code (varchar(10)) - C�digo de pa�s: '+1', '+52', '+44'
+4. phone_number (varchar(20)) - N�mero de tel�fono sin formato
+5. extension (varchar(10)) - Extensi�n telef�nica (opcional)
+6. is_main (boolean, DEFAULT FALSE) - Indica si es el tel�fono principal
+7. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* UNIQUE(country_code, phone_number, COALESCE(extension, '')) - Un tel�fono espec�fico solo existe una vez
+Relaciones:
+* Relaci�n N:1 con CONTACTS (un contacto puede tener m�ltiples tel�fonos)
+�ndices Sugeridos:
+* idx_phones_contact - Para consultas por contacto
+* idx_phones_main - Para localizar tel�fonos principales
+
+## TABLA 5: EMAILS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Referencia al contacto propietario
+3. email (varchar(100), UNIQUE) - Direcci�n de email �nica globalmente
+4. is_main (boolean, DEFAULT FALSE) - Indica si es el email principal del contacto
+5. is_verified (boolean, DEFAULT FALSE) - Estado de verificaci�n del email
+6. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* UNIQUE(email) - Un email solo puede existir una vez en todo el sistema
+Relaciones:
+* Relaci�n N:1 con CONTACTS (un contacto puede tener m�ltiples emails)
+�ndices Sugeridos:
+* idx_emails_contact - Para consultas por contacto
+* idx_emails_verified - Para filtros de emails verificados
+
+## TABLA 6: AVATARS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Referencia al contacto propietario
+3. url (varchar(500), UNIQUE) - URL de AWS S3 con el archivo de imagen
+4. file_name (varchar(255)) - Nombre original del archivo subido
+5. file_size (int) - Tama�o del archivo en bytes
+6. mime_type (varchar(100)) - Tipo MIME: 'image/jpeg', 'image/png', etc.
+7. is_active (boolean, DEFAULT TRUE) - Estado activo/inactivo de la imagen
+8. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* UNIQUE(url) - Cada URL de S3 es �nica
+Relaciones:
+* Relaci�n N:1 con CONTACTS (un contacto puede tener m�ltiples avatars)
+�ndices Sugeridos:
+* idx_avatars_contact - Para consultas por contacto
+* idx_avatars_active - Para filtros de im�genes activas
+
+1.2 ORGANIZACIONES (3 TABLAS)
+## TABLA 7: ORGANIZATIONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. parent_id (int, FK ? ORGANIZATIONS) - Referencia a organizaci�n padre (jerarqu�a)
+3. name (varchar(100)) - Nombre de la organizaci�n
+4. organization_type (varchar(50)) - 'CORPORATE', 'BRANCH', 'SUBSIDIARY'
+5. address_line_1 (varchar(255)) - Direcci�n principal
+6. address_line_2 (varchar(255)) - Direcci�n secundaria (suite, apt)
+7. city (varchar(100)) - Ciudad
+8. state (varchar(50)) - Estado/provincia
+9. zip_code (varchar(20)) - C�digo postal
+10. country (varchar(50)) - Pa�s
+11. phone (varchar(20)) - Tel�fono principal de la organizaci�n
+12. email (varchar(100)) - Email principal de la organizaci�n
+13. website (varchar(255)) - Sitio web corporativo
+14. industry (varchar(100)) - Industria principal: 'Construction', 'Roofing', etc.
+15. tax_id (varchar(50)) - ID fiscal de la organizaci�n
+16. is_active (boolean, DEFAULT TRUE) - Estado activo de la organizaci�n
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (permite nombres similares en diferentes ramas)
+Relaciones:
+* Auto-referencia para jerarqu�a matriz-sucursales
+* Relaci�n 1:N con CONTACT_ORGANIZATION_ROLES
+�ndices Sugeridos:
+* idx_orgs_parent - Para consultas jer�rquicas
+* idx_orgs_type - Para filtros por tipo de organizaci�n
+* idx_orgs_industry - Para an�lisis por industria
+
+## TABLA 8: ORGANIZATION_SETTINGS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. setting_key (varchar(100)) - Clave de la configuraci�n
+4. setting_value (text) - Valor de la configuraci�n (JSON/texto)
+5. setting_type (varchar(50)) - 'STRING', 'NUMBER', 'BOOLEAN', 'JSON'
+6. description (text) - Descripci�n del prop�sito de la configuraci�n
+7. is_encrypted (boolean, DEFAULT FALSE) - Indica si el valor est� encriptado
+8. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, setting_key) - Una configuraci�n por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+�ndices Sugeridos:
+* idx_org_settings_key - Para b�squedas por configuraci�n
+* idx_org_settings_encrypted - Para auditor�a de datos sensibles
+
+## TABLA 9: ORGANIZATION_INTEGRATIONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que tiene la integraci�n
+3. integration_type (varchar(50)) - 'GOOGLE_MAPS', 'PLAID', 'WEATHER_API', 'AGORA'
+4. api_key (varchar(255)) - Clave API encriptada
+5. api_secret (varchar(255)) - Secret encriptado (si aplica)
+6. config_json (json) - Configuraci�n espec�fica de la integraci�n
+7. is_active (boolean, DEFAULT TRUE) - Estado activo de la integraci�n
+8. last_sync_at (timestamp) - �ltima sincronizaci�n exitosa
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, integration_type) - Una integraci�n por tipo y organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+�ndices Sugeridos:
+* idx_org_integrations_type - Para consultas por tipo de integraci�n
+* idx_org_integrations_active - Para integraciones activas
+
+1.3 ROLES Y PERMISOS (3 TABLAS)
+## TABLA 10: ROLE_TYPES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. role_name (varchar(50)) - Nombre del tipo de rol: 'ADMIN', 'SALES_REP', 'TECHNICIAN'
+3. description (text) - Descripci�n detallada del rol
+4. permissions_json (json) - Permisos del rol en formato JSON
+5. is_system_role (boolean, DEFAULT FALSE) - Indica si es un rol del sistema
+6. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+7. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(role_name) - Nombres de rol �nicos
+Relaciones:
+* Relaci�n 1:N con ROLES
+�ndices Sugeridos:
+* idx_role_types_system - Para filtros de roles del sistema
+* idx_role_types_name - Para b�squedas por nombre
+
+## TABLA 11: ROLES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define el rol
+3. role_type_id (int, FK ? ROLE_TYPES) - Tipo de rol base
+4. role_name (varchar(100)) - Nombre espec�fico del rol en la organizaci�n
+5. custom_permissions_json (json) - Permisos adicionales espec�ficos
+6. is_active (boolean, DEFAULT TRUE) - Estado activo del rol
+7. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+8. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, role_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS y ROLE_TYPES
+* Relaci�n 1:N con CONTACT_ORGANIZATION_ROLES
+�ndices Sugeridos:
+* idx_roles_org - Para consultas por organizaci�n
+* idx_roles_type - Para consultas por tipo de rol
+
+## TABLA 12: CONTACT_ORGANIZATION_ROLES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Contacto que tiene el rol
+3. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n donde tiene el rol
+4. role_id (int, FK ? ROLES) - Rol espec�fico asignado
+5. is_active (boolean, DEFAULT TRUE) - Estado activo de la asignaci�n
+6. assigned_at (timestamp, DEFAULT NOW()) - Fecha de asignaci�n del rol
+7. assigned_by_contact_id (int, FK ? CONTACTS) - Quien asign� el rol
+8. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, organization_id, role_id) - Un rol espec�fico por contacto/organizaci�n
+Relaciones:
+* Tabla puente muchos-a-muchos entre CONTACTS, ORGANIZATIONS y ROLES
+�ndices Sugeridos:
+* idx_contact_org_roles_contact - Para consultas por contacto
+* idx_contact_org_roles_org - Para consultas por organizaci�n
+* idx_contact_org_roles_active - Para roles activos
+
+1.4 USUARIOS Y AUTENTICACI�N (3 TABLAS)
+## TABLA 13: USERS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS, UNIQUE) - Referencia 1:1 al contacto
+3. username (varchar(50), UNIQUE) - Nombre de usuario �nico
+4. email (varchar(100), UNIQUE) - Email de autenticaci�n �nico
+5. password_hash (varchar(255)) - Hash seguro de la contrase�a
+6. is_email_verified (boolean, DEFAULT FALSE) - Estado de verificaci�n del email
+7. is_active (boolean, DEFAULT TRUE) - Estado activo del usuario
+8. last_login_at (timestamp) - �ltimo inicio de sesi�n
+9. failed_login_attempts (int, DEFAULT 0) - Intentos fallidos consecutivos
+10. account_locked_until (timestamp) - Hasta cu�ndo est� bloqueada la cuenta
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id) - Un usuario por contacto
+* UNIQUE(username) - Nombres de usuario �nicos
+* UNIQUE(email) - Emails �nicos para login
+Relaciones:
+* Relaci�n 1:1 con CONTACTS
+* Relaci�n 1:N con PASSWORD_RESET_TOKENS y USER_SESSIONS
+�ndices Sugeridos:
+* idx_users_username - Para login por username
+* idx_users_email - Para login por email
+* idx_users_active - Para usuarios activos
+
+## TABLA 14: PASSWORD_RESET_TOKENS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. user_id (int, FK ? USERS) - Usuario que solicita reset
+3. token (varchar(255), UNIQUE) - Token �nico de reset
+4. expires_at (timestamp) - Fecha de expiraci�n del token
+5. used_at (timestamp) - Cu�ndo fue utilizado (NULL si no se ha usado)
+6. ip_address (varchar(45)) - IP desde donde se solicit�
+7. user_agent (text) - User agent del navegador
+8. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* UNIQUE(token) - Tokens �nicos
+Relaciones:
+* Relaci�n N:1 con USERS
+�ndices Sugeridos:
+* idx_password_tokens_user - Para consultas por usuario
+* idx_password_tokens_expires - Para cleanup de tokens expirados
+
+## TABLA 15: USER_SESSIONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. user_id (int, FK ? USERS) - Usuario de la sesi�n
+3. session_token (varchar(255), UNIQUE) - Token �nico de sesi�n
+4. ip_address (varchar(45)) - IP de la sesi�n
+5. user_agent (text) - User agent del navegador
+6. expires_at (timestamp) - Fecha de expiraci�n de la sesi�n
+7. is_active (boolean, DEFAULT TRUE) - Estado activo de la sesi�n
+8. last_activity_at (timestamp) - �ltima actividad registrada
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* UNIQUE(session_token) - Tokens de sesi�n �nicos
+Relaciones:
+* Relaci�n N:1 con USERS (un usuario puede tener m�ltiples sesiones)
+�ndices Sugeridos:
+* idx_sessions_user - Para consultas por usuario
+* idx_sessions_token - Para validaci�n r�pida de tokens
+* idx_sessions_expires - Para cleanup de sesiones expiradas
+
+1.5 PROPIEDADES (4 TABLAS)
+## TABLA 16: PROPERTIES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. place_id (varchar(255), UNIQUE) - Google Places API unique identifier
+3. address_line_1 (varchar(255)) - Direcci�n principal de la propiedad
+4. address_line_2 (varchar(255)) - Apartamento, suite, unidad
+5. city (varchar(100)) - Ciudad de la propiedad
+6. state (varchar(50)) - Estado/provincia
+7. zip_code (varchar(20)) - C�digo postal
+8. country (varchar(50)) - Pa�s
+9. latitude (decimal(10,8)) - Coordenada geogr�fica latitud
+10. longitude (decimal(11,8)) - Coordenada geogr�fica longitud
+11. property_type (varchar(50)) - 'RESIDENTIAL', 'COMMERCIAL', 'INDUSTRIAL'
+12. year_built (int) - A�o de construcci�n
+13. square_footage (int) - Pies cuadrados de la propiedad
+14. lot_size (decimal(10,2)) - Tama�o del lote en acres/metros
+15. bedrooms (int) - N�mero de rec�maras (residencial)
+16. bathrooms (decimal(3,1)) - N�mero de ba�os (incluye medios ba�os)
+17. stories (int) - N�mero de pisos de la construcci�n
+18. roof_material (varchar(50)) - Material del techo para roofing companies
+19. roof_age (int) - Edad estimada del techo en a�os
+20. construction_type (varchar(50)) - Tipo de construcci�n: 'FRAME', 'MASONRY', 'STEEL'
+21. is_active (boolean, DEFAULT TRUE) - Estado activo de la propiedad
+22. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+23. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(place_id) - Google Places ID �nico por propiedad
+Relaciones:
+* Relaci�n 1:N con PROPERTY_IMAGES, PROPERTY_NOTES
+* Relaci�n N:M con CONTACTS a trav�s de tabla puente
+�ndices Sugeridos:
+* idx_properties_coordinates - Para b�squedas geogr�ficas
+* idx_properties_type - Para filtros por tipo de propiedad
+* idx_properties_city_state - Para b�squedas por ubicaci�n
+
+## TABLA 17: PROPERTY_IMAGES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. property_id (int, FK ? PROPERTIES) - Propiedad a la que pertenece la imagen
+3. image_url (varchar(500)) - URL de AWS S3 con la imagen
+4. image_type (varchar(50)) - 'EXTERIOR', 'INTERIOR', 'ROOF', 'DAMAGE', 'BEFORE', 'AFTER'
+5. description (text) - Descripci�n de lo que muestra la imagen
+6. taken_at (timestamp) - Cu�ndo fue tomada la foto
+7. taken_by_contact_id (int, FK ? CONTACTS) - Qui�n tom� la foto
+8. file_size (int) - Tama�o del archivo en bytes
+9. mime_type (varchar(100)) - Tipo MIME de la imagen
+10. is_primary (boolean, DEFAULT FALSE) - Imagen principal de la propiedad
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples im�genes permitidas)
+Relaciones:
+* Relaci�n N:1 con PROPERTIES
+* Relaci�n N:1 con CONTACTS (fot�grafo)
+�ndices Sugeridos:
+* idx_property_images_property - Para consultas por propiedad
+* idx_property_images_type - Para filtros por tipo de imagen
+* idx_property_images_primary - Para localizar imagen principal
+
+## TABLA 18: PROPERTY_NOTES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. property_id (int, FK ? PROPERTIES) - Propiedad a la que pertenece la nota
+3. note_text (text) - Contenido de la nota
+4. note_type (varchar(50)) - 'GENERAL', 'INSPECTION', 'DAMAGE', 'ACCESS', 'CUSTOMER'
+5. is_important (boolean, DEFAULT FALSE) - Marca la nota como importante
+6. is_visible_to_customer (boolean, DEFAULT FALSE) - Si el cliente puede ver la nota
+7. created_by_contact_id (int, FK ? CONTACTS) - Qui�n escribi� la nota
+8. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples notas permitidas)
+Relaciones:
+* Relaci�n N:1 con PROPERTIES
+* Relaci�n N:1 con CONTACTS (autor)
+�ndices Sugeridos:
+* idx_property_notes_property - Para consultas por propiedad
+* idx_property_notes_type - Para filtros por tipo de nota
+* idx_property_notes_important - Para notas marcadas como importantes
+
+## TABLA 19: PROPERTY_BATCH_DATA M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. property_id (int, FK ? PROPERTIES) - Propiedad a la que pertenecen los datos
+3. owner_name (varchar(200)) - Nombre del propietario seg�n BatchData API
+4. owner_mailing_address (varchar(500)) - Direcci�n postal del propietario
+5. assessed_value (decimal(12,2)) - Valor catastral de la propiedad
+6. market_value (decimal(12,2)) - Valor de mercado estimado
+7. tax_amount (decimal(10,2)) - Impuestos anuales de la propiedad
+8. deed_date (date) - Fecha de escrituraci�n
+9. sales_price (decimal(12,2)) - Precio de �ltima venta
+10. sales_date (date) - Fecha de �ltima venta
+11. mortgage_amount (decimal(12,2)) - Monto de hipoteca actual
+12. mortgage_lender (varchar(200)) - Instituci�n prestamista
+13. property_use_code (varchar(20)) - C�digo de uso de la propiedad
+14. last_updated_at (timestamp) - �ltima actualizaci�n de BatchData
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (datos pueden actualizarse)
+Relaciones:
+* Relaci�n N:1 con PROPERTIES
+�ndices Sugeridos:
+* idx_batch_data_property - Para consultas por propiedad
+* idx_batch_data_owner - Para b�squedas por propietario
+* idx_batch_data_value - Para an�lisis de valores
+
+1.6 CRM Y LEADS (3 TABLAS)
+## TABLA 20: LEAD_STATUSES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define el status
+3. status_name (varchar(50)) - Nombre del status: 'NEW', 'CONTACTED', 'QUALIFIED'
+4. status_order (int) - Orden en el funnel de ventas
+5. status_color (varchar(7)) - Color hexadecimal para UI (#FF5733)
+6. is_final_status (boolean, DEFAULT FALSE) - Indica si es un status final
+7. conversion_probability (decimal(5,2)) - Probabilidad de conversi�n (0-100)
+8. is_active (boolean, DEFAULT TRUE) - Estado activo del status
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, status_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Relaci�n 1:N con CONTACTS
+�ndices Sugeridos:
+* idx_lead_statuses_org - Para consultas por organizaci�n
+* idx_lead_statuses_order - Para ordenamiento del funnel
+
+## TABLA 21: PROPERTY_VISITS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. property_id (int, FK ? PROPERTIES) - Propiedad visitada
+3. contact_id (int, FK ? CONTACTS) - Contacto/customer visitado
+4. sales_rep_id (int, FK ? CONTACTS) - Sales rep que hizo la visita
+5. visit_type (varchar(50)) - 'DOOR_TO_DOOR', 'SCHEDULED', 'FOLLOW_UP', 'EMERGENCY'
+6. visit_date (timestamp) - Fecha y hora de la visita
+7. visit_duration_minutes (int) - Duraci�n de la visita en minutos
+8. outcome (varchar(50)) - 'NO_ANSWER', 'NOT_INTERESTED', 'SCHEDULED', 'SOLD'
+9. notes (text) - Notas detalladas de la visita
+10. gps_latitude (decimal(10,8)) - Coordenada GPS donde se registr� la visita
+11. gps_longitude (decimal(11,8)) - Coordenada GPS donde se registr� la visita
+12. weather_conditions (varchar(100)) - Condiciones clim�ticas durante la visita
+13. follow_up_date (date) - Fecha sugerida para seguimiento
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples visitas permitidas)
+Relaciones:
+* Relaci�n N:1 con PROPERTIES, CONTACTS (customer y sales rep)
+�ndices Sugeridos:
+* idx_visits_property - Para consultas por propiedad
+* idx_visits_sales_rep - Para reportes de sales rep
+* idx_visits_date - Para an�lisis temporal
+
+## TABLA 22: LEAD_SOURCES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define la fuente
+3. source_name (varchar(100)) - Nombre de la fuente: 'Door to Door', 'Google Ads', 'Referral'
+4. source_category (varchar(50)) - Categor�a: 'DIGITAL', 'TRADITIONAL', 'REFERRAL', 'DIRECT'
+5. cost_per_lead (decimal(8,2)) - Costo promedio por lead de esta fuente
+6. conversion_rate (decimal(5,2)) - Tasa de conversi�n hist�rica (0-100)
+7. is_active (boolean, DEFAULT TRUE) - Estado activo de la fuente
+8. tracking_url (varchar(500)) - URL para tracking digital (si aplica)
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, source_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Relaci�n 1:N con CONTACTS
+�ndices Sugeridos:
+* idx_lead_sources_org - Para consultas por organizaci�n
+* idx_lead_sources_category - Para an�lisis por categor�a
+
+1.7 HR COMPLETO (33 TABLAS)
+## TABLA 23: EMPLOYEE_PERSONAL_INFO M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS, UNIQUE) - Referencia al empleado
+3. employee_id (varchar(20), UNIQUE) - ID �nico del empleado en la organizaci�n
+4. hire_date (date) - Fecha de contrataci�n
+5. employment_status (varchar(30)) - 'ACTIVE', 'TERMINATED', 'ON_LEAVE', 'SUSPENDED'
+6. employment_type (varchar(30)) - 'FULL_TIME', 'PART_TIME', 'CONTRACT', 'SEASONAL'
+7. department (varchar(100)) - Departamento: 'Sales', 'Operations', 'Administration'
+8. job_title (varchar(100)) - T�tulo del puesto
+9. manager_contact_id (int, FK ? CONTACTS) - Supervisor directo
+10. work_location (varchar(255)) - Ubicaci�n de trabajo principal
+11. marital_status (varchar(20)) - Estado civil
+12. number_of_dependents (int, DEFAULT 0) - N�mero de dependientes para beneficios
+13. veteran_status (boolean, DEFAULT FALSE) - Estado de veterano
+14. disability_status (varchar(50)) - Estado de discapacidad para compliance
+15. preferred_language (varchar(30)) - Idioma preferido de comunicaci�n
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id) - Un empleado por contacto
+* UNIQUE(employee_id) - ID de empleado �nico
+Relaciones:
+* Relaci�n 1:1 con CONTACTS
+* Auto-referencia para manager_contact_id
+�ndices Sugeridos:
+* idx_employee_info_status - Para filtros por estado de empleo
+* idx_employee_info_department - Para reportes departamentales
+* idx_employee_info_manager - Para consultas jer�rquicas
+
+## TABLA 24: EMPLOYEE_EMERGENCY_CONTACTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado propietario del contacto de emergencia
+3. emergency_contact_name (varchar(100)) - Nombre completo del contacto de emergencia
+4. relationship (varchar(50)) - Relaci�n: 'SPOUSE', 'PARENT', 'SIBLING', 'FRIEND'
+5. phone_primary (varchar(20)) - Tel�fono principal del contacto
+6. phone_secondary (varchar(20)) - Tel�fono secundario (opcional)
+7. email (varchar(100)) - Email del contacto de emergencia
+8. address (varchar(500)) - Direcci�n completa del contacto
+9. is_primary (boolean, DEFAULT FALSE) - Contacto de emergencia principal
+10. notes (text) - Notas adicionales sobre el contacto
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples contactos de emergencia permitidos)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado)
+�ndices Sugeridos:
+* idx_emergency_contacts_employee - Para consultas por empleado
+* idx_emergency_contacts_primary - Para localizar contacto principal
+
+## TABLA 25: EMPLOYEE_BANKING_INFO M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS, UNIQUE) - Empleado propietario de la informaci�n bancaria
+3. account_type (varchar(20)) - 'CHECKING', 'SAVINGS'
+4. bank_name (varchar(100)) - Nombre del banco
+5. routing_number (varchar(20)) - N�mero de routing encriptado
+6. account_number (varchar(50)) - N�mero de cuenta encriptado
+7. account_holder_name (varchar(100)) - Nombre del titular de la cuenta
+8. is_active (boolean, DEFAULT TRUE) - Estado activo para dep�sito directo
+9. verification_status (varchar(20)) - 'PENDING', 'VERIFIED', 'FAILED'
+10. verified_at (timestamp) - Cu�ndo fue verificada la cuenta
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id) - Una cuenta bancaria activa por empleado
+Relaciones:
+* Relaci�n 1:1 con CONTACTS (empleado)
+�ndices Sugeridos:
+* idx_banking_info_employee - Para consultas por empleado
+* idx_banking_info_verified - Para cuentas verificadas
+
+## TABLA 26: EMPLOYEE_DOCUMENTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado propietario del documento
+3. document_type (varchar(50)) - 'I9', 'W4', 'RESUME', 'CERTIFICATION', 'CONTRACT'
+4. document_name (varchar(255)) - Nombre descriptivo del documento
+5. file_url (varchar(500)) - URL de AWS S3 donde est� almacenado
+6. file_name (varchar(255)) - Nombre original del archivo
+7. file_size (int) - Tama�o del archivo en bytes
+8. mime_type (varchar(100)) - Tipo MIME del archivo
+9. expiration_date (date) - Fecha de vencimiento (si aplica)
+10. is_required (boolean, DEFAULT FALSE) - Si es documento requerido
+11. approval_status (varchar(20)) - 'PENDING', 'APPROVED', 'REJECTED'
+12. approved_by_contact_id (int, FK ? CONTACTS) - Qui�n aprob� el documento
+13. approved_at (timestamp) - Cu�ndo fue aprobado
+14. uploaded_by_contact_id (int, FK ? CONTACTS) - Qui�n subi� el documento
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples documentos del mismo tipo permitidos)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado, aprobador, uploader)
+�ndices Sugeridos:
+* idx_employee_docs_employee - Para consultas por empleado
+* idx_employee_docs_type - Para filtros por tipo de documento
+* idx_employee_docs_expiration - Para documentos pr�ximos a vencer
+
+## TABLA 27: PAYROLL_RECORDS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado del registro de n�mina
+3. pay_period_start (date) - Inicio del per�odo de pago
+4. pay_period_end (date) - Fin del per�odo de pago
+5. pay_date (date) - Fecha de pago
+6. gross_pay (decimal(10,2)) - Salario bruto
+7. regular_hours (decimal(6,2)) - Horas regulares trabajadas
+8. overtime_hours (decimal(6,2)) - Horas extra trabajadas
+9. regular_rate (decimal(8,2)) - Tarifa por hora regular
+10. overtime_rate (decimal(8,2)) - Tarifa por hora extra
+11. commission_amount (decimal(10,2)) - Comisiones ganadas
+12. bonus_amount (decimal(10,2)) - Bonos del per�odo
+13. total_deductions (decimal(10,2)) - Total de deducciones
+14. net_pay (decimal(10,2)) - Pago neto final
+15. pay_method (varchar(20)) - 'DIRECT_DEPOSIT', 'CHECK', 'CASH'
+16. payroll_batch_id (varchar(50)) - ID del lote de n�mina
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, pay_period_start, pay_period_end) - Un registro por per�odo
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado)
+* Relaci�n 1:N con PAYROLL_DEDUCTIONS
+�ndices Sugeridos:
+* idx_payroll_employee - Para consultas por empleado
+* idx_payroll_period - Para reportes por per�odo
+* idx_payroll_pay_date - Para consultas por fecha de pago
+
+## TABLA 28: PAYROLL_DEDUCTIONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. payroll_record_id (int, FK ? PAYROLL_RECORDS) - Registro de n�mina asociado
+3. deduction_type (varchar(50)) - 'FEDERAL_TAX', 'STATE_TAX', 'SOCIAL_SECURITY', 'MEDICARE', 'HEALTH_INSURANCE'
+4. deduction_name (varchar(100)) - Nombre descriptivo de la deducci�n
+5. deduction_amount (decimal(8,2)) - Monto de la deducci�n
+6. is_pre_tax (boolean, DEFAULT FALSE) - Si es deducci�n antes de impuestos
+7. employer_contribution (decimal(8,2)) - Contribuci�n del empleador (si aplica)
+8. ytd_amount (decimal(10,2)) - Acumulado del a�o hasta la fecha
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples deducciones por payroll record)
+Relaciones:
+* Relaci�n N:1 con PAYROLL_RECORDS
+�ndices Sugeridos:
+* idx_deductions_payroll - Para consultas por registro de n�mina
+* idx_deductions_type - Para reportes por tipo de deducci�n
+
+## TABLA 29: EMPLOYEE_BENEFITS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que ofrece el beneficio
+3. benefit_name (varchar(100)) - Nombre del beneficio: 'Health Insurance', '401k'
+4. benefit_type (varchar(50)) - 'HEALTH', 'DENTAL', 'VISION', 'RETIREMENT', 'LIFE_INSURANCE'
+5. provider_name (varchar(100)) - Nombre del proveedor del beneficio
+6. benefit_description (text) - Descripci�n detallada del beneficio
+7. employee_cost_monthly (decimal(8,2)) - Costo mensual para el empleado
+8. employer_cost_monthly (decimal(8,2)) - Costo mensual para el empleador
+9. eligibility_requirements (text) - Requisitos para ser elegible
+10. waiting_period_days (int, DEFAULT 0) - D�as de espera antes de elegibilidad
+11. is_active (boolean, DEFAULT TRUE) - Estado activo del beneficio
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, benefit_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Relaci�n 1:N con BENEFIT_ENROLLMENTS
+�ndices Sugeridos:
+* idx_benefits_org - Para consultas por organizaci�n
+* idx_benefits_type - Para filtros por tipo de beneficio
+
+## TABLA 30: BENEFIT_ENROLLMENTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado inscrito en el beneficio
+3. employee_benefit_id (int, FK ? EMPLOYEE_BENEFITS) - Beneficio al que se inscribe
+4. enrollment_date (date) - Fecha de inscripci�n en el beneficio
+5. effective_date (date) - Fecha de inicio de cobertura
+6. termination_date (date) - Fecha de fin de cobertura (NULL si activo)
+7. coverage_level (varchar(50)) - 'EMPLOYEE_ONLY', 'EMPLOYEE_SPOUSE', 'FAMILY'
+8. employee_contribution (decimal(8,2)) - Contribuci�n mensual del empleado
+9. enrollment_status (varchar(20)) - 'ACTIVE', 'TERMINATED', 'SUSPENDED'
+10. beneficiary_info (json) - Informaci�n de beneficiarios en formato JSON
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, employee_benefit_id, effective_date) - Una inscripci�n por beneficio/fecha
+Relaciones:
+* Relaci�n N:1 con CONTACTS y EMPLOYEE_BENEFITS
+�ndices Sugeridos:
+* idx_enrollments_employee - Para consultas por empleado
+* idx_enrollments_benefit - Para consultas por beneficio
+* idx_enrollments_status - Para filtros por estado
+
+## TABLA 31: PTO_POLICIES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define la pol�tica
+3. policy_name (varchar(100)) - Nombre de la pol�tica: 'Standard PTO', 'Management PTO'
+4. pto_type (varchar(50)) - 'VACATION', 'SICK', 'PERSONAL', 'COMBINED'
+5. accrual_method (varchar(30)) - 'HOURLY', 'DAILY', 'MONTHLY', 'ANNUAL', 'FRONT_LOADED'
+6. accrual_rate (decimal(6,4)) - Tasa de acumulaci�n (horas por per�odo)
+7. max_accrual_hours (decimal(6,2)) - M�ximo de horas que se pueden acumular
+8. carryover_hours (decimal(6,2)) - Horas que se pueden transferir al siguiente a�o
+9. waiting_period_days (int, DEFAULT 0) - D�as antes de poder usar PTO
+10. min_increment_hours (decimal(4,2)) - Incremento m�nimo para solicitar (0.25, 0.5, 1.0)
+11. requires_approval (boolean, DEFAULT TRUE) - Si requiere aprobaci�n del manager
+12. advance_notice_days (int, DEFAULT 1) - D�as de aviso requeridos
+13. is_active (boolean, DEFAULT TRUE) - Estado activo de la pol�tica
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, policy_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Relaci�n 1:N con PTO_BALANCES
+�ndices Sugeridos:
+* idx_pto_policies_org - Para consultas por organizaci�n
+* idx_pto_policies_type - Para filtros por tipo de PTO
+
+## TABLA 32: PTO_REQUESTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado que solicita el PTO
+3. pto_policy_id (int, FK ? PTO_POLICIES) - Pol�tica de PTO aplicable
+4. request_date (date) - Fecha de la solicitud
+5. start_date (date) - Fecha de inicio del PTO
+6. end_date (date) - Fecha de fin del PTO
+7. total_hours (decimal(6,2)) - Total de horas solicitadas
+8. reason (text) - Raz�n para el PTO
+9. status (varchar(20)) - 'PENDING', 'APPROVED', 'DENIED', 'CANCELLED'
+10. approved_by_contact_id (int, FK ? CONTACTS) - Manager que aprob�/neg�
+11. approval_date (date) - Fecha de aprobaci�n/negaci�n
+12. approval_notes (text) - Notas del aprobador
+13. is_emergency (boolean, DEFAULT FALSE) - Si es solicitud de emergencia
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples solicitudes permitidas)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado y aprobador)
+* Relaci�n N:1 con PTO_POLICIES
+�ndices Sugeridos:
+* idx_pto_requests_employee - Para consultas por empleado
+* idx_pto_requests_status - Para filtros por estado
+* idx_pto_requests_dates - Para consultas por per�odo
+
+## TABLA 33: PTO_BALANCES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado propietario del balance
+3. pto_policy_id (int, FK ? PTO_POLICIES) - Pol�tica de PTO aplicable
+4. current_balance (decimal(6,2)) - Balance actual de horas
+5. accrued_ytd (decimal(6,2)) - Horas acumuladas en el a�o
+6. used_ytd (decimal(6,2)) - Horas usadas en el a�o
+7. carryover_from_previous (decimal(6,2)) - Horas transferidas del a�o anterior
+8. last_accrual_date (date) - �ltima fecha de acumulaci�n
+9. next_accrual_date (date) - Pr�xima fecha de acumulaci�n
+10. balance_year (int) - A�o del balance
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, pto_policy_id, balance_year) - Un balance por empleado/pol�tica/a�o
+Relaciones:
+* Relaci�n N:1 con CONTACTS y PTO_POLICIES
+�ndices Sugeridos:
+* idx_pto_balances_employee - Para consultas por empleado
+* idx_pto_balances_year - Para consultas por a�o
+
+## TABLA 34: TRAINING_PROGRAMS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que ofrece el training
+3. program_name (varchar(100)) - Nombre del programa de entrenamiento
+4. program_description (text) - Descripci�n detallada del programa
+5. training_type (varchar(50)) - 'ONBOARDING', 'SAFETY', 'TECHNICAL', 'COMPLIANCE', 'LEADERSHIP'
+6. duration_hours (decimal(5,2)) - Duraci�n en horas del entrenamiento
+7. is_mandatory (boolean, DEFAULT FALSE) - Si es entrenamiento obligatorio
+8. expiration_months (int) - Meses antes de que expire la certificaci�n
+9. instructor_contact_id (int, FK ? CONTACTS) - Instructor principal
+10. training_materials_url (varchar(500)) - URL de materiales en AWS S3
+11. completion_requirements (text) - Requisitos para completar el training
+12. is_active (boolean, DEFAULT TRUE) - Estado activo del programa
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, program_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS y CONTACTS (instructor)
+* Relaci�n 1:N con EMPLOYEE_TRAINING_RECORDS
+�ndices Sugeridos:
+* idx_training_programs_org - Para consultas por organizaci�n
+* idx_training_programs_type - Para filtros por tipo
+
+## TABLA 35: EMPLOYEE_TRAINING_RECORDS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado que tom� el entrenamiento
+3. training_program_id (int, FK ? TRAINING_PROGRAMS) - Programa completado
+4. start_date (date) - Fecha de inicio del entrenamiento
+5. completion_date (date) - Fecha de finalizaci�n
+6. score (decimal(5,2)) - Puntuaci�n obtenida (si aplica)
+7. passing_score (decimal(5,2)) - Puntuaci�n m�nima requerida
+8. status (varchar(20)) - 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'EXPIRED'
+9. expiration_date (date) - Fecha de vencimiento de la certificaci�n
+10. instructor_contact_id (int, FK ? CONTACTS) - Instructor que imparti�
+11. completion_notes (text) - Notas sobre la finalizaci�n
+12. certificate_url (varchar(500)) - URL del certificado en AWS S3
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (empleado puede retomar entrenamientos)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado e instructor)
+* Relaci�n N:1 con TRAINING_PROGRAMS
+�ndices Sugeridos:
+* idx_training_records_employee - Para consultas por empleado
+* idx_training_records_program - Para reportes por programa
+* idx_training_records_expiration - Para certificaciones pr�ximas a vencer
+
+## TABLA 36: TRAINING_CERTIFICATIONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado certificado
+3. certification_name (varchar(100)) - Nombre de la certificaci�n
+4. issuing_organization (varchar(100)) - Organizaci�n que emite la certificaci�n
+5. certification_number (varchar(50)) - N�mero �nico de certificaci�n
+6. issue_date (date) - Fecha de emisi�n
+7. expiration_date (date) - Fecha de vencimiento
+8. verification_url (varchar(500)) - URL para verificar la certificaci�n
+9. certificate_file_url (varchar(500)) - URL del archivo del certificado
+10. is_required_for_job (boolean, DEFAULT FALSE) - Si es requerida para el trabajo
+11. renewal_notification_sent (boolean, DEFAULT FALSE) - Si se envi� notificaci�n de renovaci�n
+12. status (varchar(20)) - 'ACTIVE', 'EXPIRED', 'SUSPENDED', 'REVOKED'
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(certification_number) - N�meros de certificaci�n �nicos
+Relaciones:
+* Relaci�n N:1 con CONTACTS
+�ndices Sugeridos:
+* idx_certifications_employee - Para consultas por empleado
+* idx_certifications_expiration - Para renovaciones pr�ximas
+* idx_certifications_required - Para certificaciones obligatorias
+
+## TABLA 37: ONBOARDING_CHECKLISTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define la checklist
+3. checklist_name (varchar(100)) - Nombre de la checklist de onboarding
+4. job_position (varchar(100)) - Posici�n para la que aplica la checklist
+5. department (varchar(50)) - Departamento espec�fico
+6. checklist_items (json) - Items de la checklist en formato JSON
+7. estimated_days (int) - D�as estimados para completar onboarding
+8. is_template (boolean, DEFAULT TRUE) - Si es template o instancia espec�fica
+9. is_active (boolean, DEFAULT TRUE) - Estado activo de la checklist
+10. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� la checklist
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, checklist_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS y CONTACTS
+* Relaci�n 1:N con EMPLOYEE_ONBOARDING_PROGRESS
+�ndices Sugeridos:
+* idx_onboarding_checklists_org - Para consultas por organizaci�n
+* idx_onboarding_checklists_position - Para filtros por posici�n
+
+## TABLA 38: EMPLOYEE_ONBOARDING_PROGRESS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado en proceso de onboarding
+3. onboarding_checklist_id (int, FK ? ONBOARDING_CHECKLISTS) - Checklist asignada
+4. start_date (date) - Fecha de inicio del onboarding
+5. expected_completion_date (date) - Fecha esperada de finalizaci�n
+6. actual_completion_date (date) - Fecha real de finalizaci�n
+7. progress_percentage (decimal(5,2)) - Porcentaje de progreso (0-100)
+8. completed_items (json) - Items completados con fechas
+9. pending_items (json) - Items pendientes
+10. assigned_buddy_contact_id (int, FK ? CONTACTS) - Empleado buddy asignado
+11. hr_contact_id (int, FK ? CONTACTS) - Responsable de HR
+12. status (varchar(20)) - 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'ON_HOLD'
+13. notes (text) - Notas sobre el progreso
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, onboarding_checklist_id) - Una checklist activa por empleado
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado, buddy, HR)
+* Relaci�n N:1 con ONBOARDING_CHECKLISTS
+�ndices Sugeridos:
+* idx_onboarding_progress_employee - Para consultas por empleado
+* idx_onboarding_progress_status - Para filtros por estado
+
+## TABLA 39: PERFORMANCE_REVIEW_TEMPLATES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define el template
+3. template_name (varchar(100)) - Nombre del template de evaluaci�n
+4. review_type (varchar(50)) - 'ANNUAL', 'QUARTERLY', 'PROBATIONARY', '90_DAY'
+5. applicable_positions (json) - Posiciones para las que aplica el template
+6. evaluation_criteria (json) - Criterios de evaluaci�n con pesos
+7. rating_scale (json) - Escala de calificaci�n (1-5, 1-10, etc.)
+8. includes_self_evaluation (boolean, DEFAULT FALSE) - Si incluye autoevaluaci�n
+9. includes_peer_review (boolean, DEFAULT FALSE) - Si incluye evaluaci�n de pares
+10. includes_goals_setting (boolean, DEFAULT TRUE) - Si incluye establecimiento de metas
+11. is_active (boolean, DEFAULT TRUE) - Estado activo del template
+12. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� el template
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, template_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS y CONTACTS
+* Relaci�n 1:N con PERFORMANCE_REVIEWS
+�ndices Sugeridos:
+* idx_review_templates_org - Para consultas por organizaci�n
+* idx_review_templates_type - Para filtros por tipo de review
+
+## TABLA 40: PERFORMANCE_REVIEWS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado evaluado
+3. reviewer_contact_id (int, FK ? CONTACTS) - Manager que hace la evaluaci�n
+4. template_id (int, FK ? PERFORMANCE_REVIEW_TEMPLATES) - Template utilizado
+5. review_period_start (date) - Inicio del per�odo evaluado
+6. review_period_end (date) - Fin del per�odo evaluado
+7. review_date (date) - Fecha de la evaluaci�n
+8. overall_rating (decimal(3,2)) - Calificaci�n general
+9. evaluation_scores (json) - Puntuaciones por criterio
+10. strengths (text) - Fortalezas identificadas
+11. areas_for_improvement (text) - �reas de mejora
+12. achievements (text) - Logros durante el per�odo
+13. goals_previous_period (json) - Metas del per�odo anterior
+14. goals_next_period (json) - Metas para el pr�ximo per�odo
+15. development_plan (text) - Plan de desarrollo profesional
+16. employee_comments (text) - Comentarios del empleado
+17. hr_comments (text) - Comentarios de HR
+18. status (varchar(20)) - 'DRAFT', 'PENDING_SIGNATURE', 'COMPLETED', 'DISPUTED'
+19. signed_by_employee_at (timestamp) - Cu�ndo firm� el empleado
+20. signed_by_manager_at (timestamp) - Cu�ndo firm� el manager
+21. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+22. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples reviews por empleado permitidas)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado y reviewer)
+* Relaci�n N:1 con PERFORMANCE_REVIEW_TEMPLATES
+�ndices Sugeridos:
+* idx_performance_reviews_employee - Para consultas por empleado
+* idx_performance_reviews_period - Para consultas por per�odo
+* idx_performance_reviews_status - Para filtros por estado
+
+## TABLA 41: PERFORMANCE_GOALS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado propietario de la meta
+3. performance_review_id (int, FK ? PERFORMANCE_REVIEWS) - Review donde se estableci�
+4. goal_title (varchar(200)) - T�tulo de la meta
+5. goal_description (text) - Descripci�n detallada de la meta
+6. goal_category (varchar(50)) - 'PERFORMANCE', 'DEVELOPMENT', 'BEHAVIORAL', 'PROJECT'
+7. target_date (date) - Fecha objetivo para completar la meta
+8. success_criteria (text) - Criterios para considerar la meta exitosa
+9. weight_percentage (decimal(5,2)) - Peso de la meta en evaluaci�n general
+10. current_progress (decimal(5,2)) - Progreso actual (0-100)
+11. status (varchar(20)) - 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'
+12. completion_date (date) - Fecha real de finalizaci�n
+13. achievement_notes (text) - Notas sobre el logro de la meta
+14. set_by_contact_id (int, FK ? CONTACTS) - Quien estableci� la meta
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples metas por empleado permitidas)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado y quien estableci�)
+* Relaci�n N:1 con PERFORMANCE_REVIEWS
+�ndices Sugeridos:
+* idx_goals_employee - Para consultas por empleado
+* idx_goals_target_date - Para metas pr�ximas a vencer
+* idx_goals_status - Para filtros por estado
+
+## TABLA 42: INCIDENTS_REPORTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado involucrado en el incidente
+3. reporter_contact_id (int, FK ? CONTACTS) - Quien reporta el incidente
+4. incident_date (timestamp) - Fecha y hora del incidente
+5. incident_type (varchar(50)) - 'INJURY', 'NEAR_MISS', 'PROPERTY_DAMAGE', 'SAFETY_VIOLATION'
+6. severity_level (varchar(20)) - 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+7. location (varchar(255)) - Ubicaci�n donde ocurri� el incidente
+8. description (text) - Descripci�n detallada del incidente
+9. immediate_action_taken (text) - Acciones inmediatas tomadas
+10. witnesses (json) - Lista de testigos con informaci�n de contacto
+11. injuries_sustained (text) - Lesiones sufridas (si aplica)
+12. medical_attention_required (boolean, DEFAULT FALSE) - Si requiri� atenci�n m�dica
+13. medical_facility (varchar(200)) - Instalaci�n m�dica donde fue atendido
+14. root_cause (text) - An�lisis de causa ra�z
+15. corrective_actions (text) - Acciones correctivas implementadas
+16. prevention_measures (text) - Medidas para prevenir recurrencia
+17. osha_recordable (boolean, DEFAULT FALSE) - Si es reportable a OSHA
+18. workers_comp_claim (boolean, DEFAULT FALSE) - Si se abri� claim de compensaci�n
+19. investigation_status (varchar(20)) - 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'
+20. investigated_by_contact_id (int, FK ? CONTACTS) - Quien investig�
+21. photos_urls (json) - URLs de fotos del incidente en AWS S3
+22. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+23. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples incidentes permitidos)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado, reporter, investigador)
+�ndices Sugeridos:
+* idx_incidents_employee - Para consultas por empleado
+* idx_incidents_date - Para reportes por per�odo
+* idx_incidents_severity - Para filtros por severidad
+* idx_incidents_osha - Para reportes OSHA
+
+## TABLA 43: SAFETY_TRAINING_RECORDS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado que recibi� el entrenamiento
+3. training_topic (varchar(100)) - Tema del entrenamiento de seguridad
+4. training_type (varchar(50)) - 'OSHA_10', 'OSHA_30', 'FIRST_AID', 'CPR', 'FALL_PROTECTION'
+5. training_date (date) - Fecha del entrenamiento
+6. trainer_name (varchar(100)) - Nombre del instructor
+7. training_organization (varchar(100)) - Organizaci�n que proporcion� el entrenamiento
+8. certification_number (varchar(50)) - N�mero de certificaci�n (si aplica)
+9. expiration_date (date) - Fecha de vencimiento de la certificaci�n
+10. hours_completed (decimal(4,2)) - Horas de entrenamiento completadas
+11. training_materials_url (varchar(500)) - URL de materiales en AWS S3
+12. certificate_url (varchar(500)) - URL del certificado en AWS S3
+13. is_mandatory (boolean, DEFAULT FALSE) - Si es entrenamiento obligatorio
+14. renewal_notification_sent (boolean, DEFAULT FALSE) - Si se envi� notificaci�n de renovaci�n
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (empleado puede retomar entrenamientos)
+Relaciones:
+* Relaci�n N:1 con CONTACTS
+�ndices Sugeridos:
+* idx_safety_training_employee - Para consultas por empleado
+* idx_safety_training_type - Para reportes por tipo
+* idx_safety_training_expiration - Para renovaciones pr�ximas
+
+## TABLA 44: EQUIPMENT_CATEGORIES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. category_name (varchar(100)) - Nombre de la categor�a: 'Tools', 'Vehicles', 'Safety Equipment'
+4. category_description (text) - Descripci�n de la categor�a
+5. requires_certification (boolean, DEFAULT FALSE) - Si requiere certificaci�n para usar
+6. maintenance_required (boolean, DEFAULT FALSE) - Si requiere mantenimiento programado
+7. depreciation_method (varchar(30)) - M�todo de depreciaci�n contable
+8. depreciation_years (int) - A�os de vida �til para depreciaci�n
+9. is_active (boolean, DEFAULT TRUE) - Estado activo de la categor�a
+10. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, category_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Relaci�n 1:N con EQUIPMENT_ITEMS
+�ndices Sugeridos:
+* idx_equipment_categories_org - Para consultas por organizaci�n
+* idx_equipment_categories_active - Para categor�as activas
+
+## TABLA 45: EQUIPMENT_ITEMS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. equipment_category_id (int, FK ? EQUIPMENT_CATEGORIES) - Categor�a del equipo
+3. equipment_name (varchar(100)) - Nombre del equipo
+4. equipment_model (varchar(100)) - Modelo del equipo
+5. serial_number (varchar(100)) - N�mero de serie �nico
+6. asset_tag (varchar(50)) - Tag de activo interno
+7. manufacturer (varchar(100)) - Fabricante del equipo
+8. purchase_date (date) - Fecha de compra
+9. purchase_price (decimal(10,2)) - Precio de compra
+10. current_value (decimal(10,2)) - Valor actual estimado
+11. warranty_expiration (date) - Fecha de vencimiento de garant�a
+12. condition_status (varchar(20)) - 'EXCELLENT', 'GOOD', 'FAIR', 'POOR', 'OUT_OF_SERVICE'
+13. location (varchar(255)) - Ubicaci�n actual del equipo
+14. is_available (boolean, DEFAULT TRUE) - Si est� disponible para asignaci�n
+15. requires_inspection (boolean, DEFAULT FALSE) - Si requiere inspecci�n peri�dica
+16. next_inspection_date (date) - Pr�xima fecha de inspecci�n
+17. notes (text) - Notas adicionales sobre el equipo
+18. photo_url (varchar(500)) - URL de foto del equipo en AWS S3
+19. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+20. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(serial_number) - N�meros de serie �nicos
+* UNIQUE(asset_tag) - Tags de activo �nicos
+Relaciones:
+* Relaci�n N:1 con EQUIPMENT_CATEGORIES
+* Relaci�n 1:N con EQUIPMENT_ASSIGNMENTS
+�ndices Sugeridos:
+* idx_equipment_items_category - Para consultas por categor�a
+* idx_equipment_items_available - Para equipos disponibles
+* idx_equipment_items_condition - Para filtros por condici�n
+
+## TABLA 46: EQUIPMENT_ASSIGNMENTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. equipment_item_id (int, FK ? EQUIPMENT_ITEMS) - Equipo asignado
+3. contact_id (int, FK ? CONTACTS) - Empleado que recibe el equipo
+4. assigned_date (date) - Fecha de asignaci�n
+5. expected_return_date (date) - Fecha esperada de devoluci�n
+6. actual_return_date (date) - Fecha real de devoluci�n
+7. assignment_purpose (varchar(100)) - Prop�sito de la asignaci�n
+8. condition_at_assignment (varchar(20)) - Condici�n al momento de asignar
+9. condition_at_return (varchar(20)) - Condici�n al momento de devolver
+10. damages_noted (text) - Da�os observados al devolver
+11. assigned_by_contact_id (int, FK ? CONTACTS) - Quien hizo la asignaci�n
+12. received_by_contact_id (int, FK ? CONTACTS) - Quien recibi� la devoluci�n
+13. status (varchar(20)) - 'ACTIVE', 'RETURNED', 'LOST', 'DAMAGED'
+14. notes (text) - Notas sobre la asignaci�n
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (equipo puede reasignarse)
+Relaciones:
+* Relaci�n N:1 con EQUIPMENT_ITEMS y CONTACTS (empleado, asignador, receptor)
+�ndices Sugeridos:
+* idx_equipment_assignments_equipment - Para consultas por equipo
+* idx_equipment_assignments_employee - Para consultas por empleado
+* idx_equipment_assignments_status - Para filtros por estado
+
+## TABLA 47: EQUIPMENT_MAINTENANCE_LOG M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. equipment_item_id (int, FK ? EQUIPMENT_ITEMS) - Equipo mantenido
+3. maintenance_date (date) - Fecha del mantenimiento
+4. maintenance_type (varchar(50)) - 'PREVENTIVE', 'CORRECTIVE', 'INSPECTION', 'CALIBRATION'
+5. description (text) - Descripci�n del mantenimiento realizado
+6. performed_by (varchar(100)) - Quien realiz� el mantenimiento
+7. service_provider (varchar(100)) - Proveedor de servicio (si es externo)
+8. cost (decimal(8,2)) - Costo del mantenimiento
+9. parts_replaced (text) - Partes reemplazadas durante el mantenimiento
+10. next_maintenance_date (date) - Pr�xima fecha de mantenimiento programado
+11. maintenance_notes (text) - Notas t�cnicas del mantenimiento
+12. photos_urls (json) - URLs de fotos del mantenimiento en AWS S3
+13. invoice_url (varchar(500)) - URL de la factura en AWS S3
+14. logged_by_contact_id (int, FK ? CONTACTS) - Quien registr� el mantenimiento
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples mantenimientos permitidos)
+Relaciones:
+* Relaci�n N:1 con EQUIPMENT_ITEMS y CONTACTS
+�ndices Sugeridos:
+* idx_maintenance_log_equipment - Para consultas por equipo
+* idx_maintenance_log_date - Para consultas por fecha
+* idx_maintenance_log_type - Para filtros por tipo
+
+## TABLA 48: TIME_TRACKING_ENTRIES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado que registra el tiempo
+3. clock_in_time (timestamp) - Hora de entrada
+4. clock_out_time (timestamp) - Hora de salida
+5. break_duration_minutes (int, DEFAULT 0) - Duraci�n de breaks en minutos
+6. total_hours (decimal(6,2)) - Total de horas trabajadas (calculado)
+7. regular_hours (decimal(6,2)) - Horas regulares (?40 por semana)
+8. overtime_hours (decimal(6,2)) - Horas extra (>40 por semana)
+9. work_location (varchar(255)) - Ubicaci�n donde trabaj�
+10. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto en el que trabaj�
+11. task_description (text) - Descripci�n del trabajo realizado
+12. gps_clock_in_lat (decimal(10,8)) - Coordenada GPS al entrar
+13. gps_clock_in_lng (decimal(11,8)) - Coordenada GPS al entrar
+14. gps_clock_out_lat (decimal(10,8)) - Coordenada GPS al salir
+15. gps_clock_out_lng (decimal(11,8)) - Coordenada GPS al salir
+16. approved_by_contact_id (int, FK ? CONTACTS) - Manager que aprob� las horas
+17. approval_date (date) - Fecha de aprobaci�n
+18. status (varchar(20)) - 'PENDING', 'APPROVED', 'REJECTED'
+19. notes (text) - Notas adicionales
+20. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+21. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples entradas por d�a permitidas)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado y aprobador)
+* Relaci�n N:1 con CUSTOMER_PROJECTS
+�ndices Sugeridos:
+* idx_time_entries_employee - Para consultas por empleado
+* idx_time_entries_date - Para reportes por per�odo
+* idx_time_entries_project - Para consultas por proyecto
+
+## TABLA 49: JOB_POSITIONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado en la posici�n
+3. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n/branch donde trabaja
+4. job_title (varchar(100)) - T�tulo del puesto
+5. department (varchar(50)) - Departamento
+6. start_date (date) - Fecha de inicio en la posici�n
+7. end_date (date) - Fecha de fin (NULL si activo)
+8. employment_type (varchar(30)) - 'FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN'
+9. hourly_rate (decimal(8,2)) - Tarifa por hora
+10. salary_annual (decimal(10,2)) - Salario anual (si aplica)
+11. commission_rate (decimal(5,2)) - Tasa de comisi�n (si aplica)
+12. is_primary (boolean, DEFAULT FALSE) - Si es la posici�n principal del empleado
+13. reports_to_contact_id (int, FK ? CONTACTS) - Supervisor directo
+14. job_description (text) - Descripci�n detallada del puesto
+15. required_skills (json) - Habilidades requeridas en formato JSON
+16. benefits_eligible (boolean, DEFAULT TRUE) - Si es elegible para beneficios
+17. pto_eligible (boolean, DEFAULT TRUE) - Si es elegible para PTO
+18. status (varchar(20)) - 'ACTIVE', 'INACTIVE', 'TERMINATED'
+19. termination_reason (varchar(100)) - Raz�n de terminaci�n (si aplica)
+20. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+21. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Solo un is_primary=TRUE por empleado (�ndice �nico)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado y supervisor)
+* Relaci�n N:1 con ORGANIZATIONS
+�ndices Sugeridos:
+* idx_job_positions_employee - Para consultas por empleado
+* idx_job_positions_org - Para consultas por organizaci�n
+* idx_job_positions_primary - Para posiciones primarias
+* CREATE UNIQUE INDEX idx_one_primary_job ON job_positions(contact_id) WHERE is_primary = TRUE
+
+## TABLA 50: EMPLOYEE_SKILLS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define la skill
+3. skill_name (varchar(100)) - Nombre de la habilidad
+4. skill_category (varchar(50)) - 'TECHNICAL', 'SOFT_SKILL', 'CERTIFICATION', 'LANGUAGE'
+5. skill_description (text) - Descripci�n de la habilidad
+6. proficiency_levels (json) - Niveles de competencia definidos
+7. is_certifiable (boolean, DEFAULT FALSE) - Si se puede certificar
+8. certification_authority (varchar(100)) - Autoridad que certifica
+9. is_active (boolean, DEFAULT TRUE) - Estado activo de la skill
+10. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, skill_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Relaci�n 1:N con SKILL_ASSESSMENTS
+�ndices Sugeridos:
+* idx_employee_skills_org - Para consultas por organizaci�n
+* idx_employee_skills_category - Para filtros por categor�a
+
+## TABLA 51: SKILL_ASSESSMENTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado evaluado
+3. employee_skill_id (int, FK ? EMPLOYEE_SKILLS) - Habilidad evaluada
+4. proficiency_level (varchar(30)) - Nivel de competencia actual
+5. assessment_date (date) - Fecha de la evaluaci�n
+6. assessed_by_contact_id (int, FK ? CONTACTS) - Quien hizo la evaluaci�n
+7. assessment_method (varchar(50)) - 'OBSERVATION', 'TEST', 'CERTIFICATION', 'SELF_ASSESSMENT'
+8. score (decimal(5,2)) - Puntuaci�n obtenida (si aplica)
+9. max_score (decimal(5,2)) - Puntuaci�n m�xima posible
+10. certification_number (varchar(50)) - N�mero de certificaci�n (si aplica)
+11. certification_expiry (date) - Fecha de vencimiento de certificaci�n
+12. notes (text) - Notas sobre la evaluaci�n
+13. evidence_url (varchar(500)) - URL de evidencia en AWS S3
+14. next_assessment_date (date) - Pr�xima fecha de reevaluaci�n
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples evaluaciones permitidas)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado y evaluador)
+* Relaci�n N:1 con EMPLOYEE_SKILLS
+�ndices Sugeridos:
+* idx_skill_assessments_employee - Para consultas por empleado
+* idx_skill_assessments_skill - Para consultas por habilidad
+* idx_skill_assessments_expiry - Para certificaciones pr�ximas a vencer
+
+## TABLA 52: COMPENSATION_HISTORY M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado con cambio de compensaci�n
+3. effective_date (date) - Fecha efectiva del cambio
+4. change_type (varchar(30)) - 'HIRE', 'PROMOTION', 'RAISE', 'ADJUSTMENT', 'DEMOTION'
+5. previous_hourly_rate (decimal(8,2)) - Tarifa por hora anterior
+6. new_hourly_rate (decimal(8,2)) - Nueva tarifa por hora
+7. previous_salary (decimal(10,2)) - Salario anual anterior
+8. new_salary (decimal(10,2)) - Nuevo salario anual
+9. previous_commission_rate (decimal(5,2)) - Tasa de comisi�n anterior
+10. new_commission_rate (decimal(5,2)) - Nueva tasa de comisi�n
+11. change_reason (varchar(100)) - Raz�n del cambio
+12. change_percentage (decimal(5,2)) - Porcentaje de cambio
+13. approved_by_contact_id (int, FK ? CONTACTS) - Quien aprob� el cambio
+14. approval_date (date) - Fecha de aprobaci�n
+15. notes (text) - Notas sobre el cambio
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples cambios permitidos)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado y aprobador)
+�ndices Sugeridos:
+* idx_compensation_history_employee - Para consultas por empleado
+* idx_compensation_history_date - Para consultas por fecha
+
+## TABLA 53: TERMINATION_RECORDS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS, UNIQUE) - Empleado terminado
+3. termination_date (date) - Fecha de terminaci�n
+4. last_work_date (date) - �ltimo d�a trabajado
+5. termination_type (varchar(30)) - 'VOLUNTARY', 'INVOLUNTARY', 'LAYOFF', 'RETIREMENT', 'DECEASED'
+6. termination_reason (varchar(100)) - Raz�n espec�fica de terminaci�n
+7. initiated_by_contact_id (int, FK ? CONTACTS) - Quien inici� la terminaci�n
+8. is_eligible_for_rehire (boolean, DEFAULT TRUE) - Si es elegible para recontrataci�n
+9. final_pay_amount (decimal(10,2)) - Monto del pago final
+10. accrued_pto_payout (decimal(8,2)) - Pago por PTO acumulado
+11. severance_amount (decimal(10,2)) - Monto de indemnizaci�n
+12. cobra_eligible (boolean, DEFAULT FALSE) - Elegible para COBRA
+13. equipment_returned (boolean, DEFAULT FALSE) - Si devolvi� todo el equipo
+14. exit_interview_completed (boolean, DEFAULT FALSE) - Si complet� entrevista de salida
+15. reference_provided (boolean, DEFAULT FALSE) - Si se proporcion� referencia
+16. unemployment_contested (boolean, DEFAULT FALSE) - Si se contest� desempleo
+17. notes (text) - Notas adicionales sobre la terminaci�n
+18. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� el registro
+19. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+20. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id) - Un registro de terminaci�n por empleado
+Relaciones:
+* Relaci�n 1:1 con CONTACTS (empleado)
+* Relaci�n N:1 con CONTACTS (iniciador y creador)
+�ndices Sugeridos:
+* idx_termination_records_date - Para consultas por fecha
+* idx_termination_records_type - Para filtros por tipo
+
+## TABLA 54: EXIT_INTERVIEWS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS, UNIQUE) - Empleado que sale
+3. interview_date (date) - Fecha de la entrevista de salida
+4. interviewer_contact_id (int, FK ? CONTACTS) - Quien condujo la entrevista
+5. overall_satisfaction (int) - Satisfacci�n general (1-10)
+6. reason_for_leaving (text) - Raz�n detallada para salir
+7. job_satisfaction (int) - Satisfacci�n con el trabajo (1-10)
+8. supervisor_relationship (int) - Relaci�n con supervisor (1-10)
+9. compensation_satisfaction (int) - Satisfacci�n con compensaci�n (1-10)
+10. work_environment (int) - Calificaci�n del ambiente laboral (1-10)
+11. career_development (int) - Oportunidades de desarrollo (1-10)
+12. would_recommend_company (boolean) - Si recomendar�a la empresa
+13. would_consider_returning (boolean) - Si considerar�a regresar
+14. suggestions_for_improvement (text) - Sugerencias de mejora
+15. positive_aspects (text) - Aspectos positivos de trabajar aqu�
+16. negative_aspects (text) - Aspectos negativos de trabajar aqu�
+17. training_adequacy (int) - Adecuaci�n del entrenamiento (1-10)
+18. workload_appropriateness (int) - Apropiada carga de trabajo (1-10)
+19. additional_comments (text) - Comentarios adicionales
+20. hr_action_items (text) - Items de acci�n para HR
+21. interview_completed (boolean, DEFAULT FALSE) - Si la entrevista se complet�
+22. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+23. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id) - Una entrevista de salida por empleado
+Relaciones:
+* Relaci�n 1:1 con CONTACTS (empleado)
+* Relaci�n N:1 con CONTACTS (entrevistador)
+�ndices Sugeridos:
+* idx_exit_interviews_date - Para consultas por fecha
+* idx_exit_interviews_satisfaction - Para an�lisis de satisfacci�n
+
+## TABLA 55: DISCIPLINARY_ACTIONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Empleado sujeto a acci�n disciplinaria
+3. action_date (date) - Fecha de la acci�n disciplinaria
+4. action_type (varchar(30)) - 'VERBAL_WARNING', 'WRITTEN_WARNING', 'SUSPENSION', 'TERMINATION'
+5. incident_date (date) - Fecha del incidente que caus� la acci�n
+6. violation_category (varchar(50)) - 'ATTENDANCE', 'PERFORMANCE', 'CONDUCT', 'SAFETY', 'POLICY'
+7. violation_description (text) - Descripci�n detallada de la violaci�n
+8. action_taken (text) - Acci�n disciplinaria espec�fica tomada
+9. duration_days (int) - Duraci�n en d�as (para suspensiones)
+10. improvement_required (text) - Mejoras requeridas del empleado
+11. follow_up_date (date) - Fecha de seguimiento programada
+12. progressive_step (int) - Paso en disciplina progresiva (1, 2, 3, etc.)
+13. issued_by_contact_id (int, FK ? CONTACTS) - Manager que emiti� la acci�n
+14. hr_contact_id (int, FK ? CONTACTS) - Representante de HR involucrado
+15. employee_acknowledgment (boolean, DEFAULT FALSE) - Si el empleado reconoci�
+16. employee_comments (text) - Comentarios del empleado
+17. documentation_url (varchar(500)) - URL de documentaci�n en AWS S3
+18. is_grievable (boolean, DEFAULT TRUE) - Si se puede presentar grievance
+19. grievance_filed (boolean, DEFAULT FALSE) - Si se present� grievance
+20. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+21. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples acciones disciplinarias permitidas)
+Relaciones:
+* Relaci�n N:1 con CONTACTS (empleado, manager, HR)
+�ndices Sugeridos:
+* idx_disciplinary_actions_employee - Para consultas por empleado
+* idx_disciplinary_actions_type - Para filtros por tipo
+* idx_disciplinary_actions_date - Para consultas por fecha
+
+1.8 CORE BUSINESS (7 TABLAS)
+## TABLA 56: PROJECT_TYPES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define el tipo
+3. type_name (varchar(100)) - Nombre del tipo: 'Roof Replacement', 'Water Damage Restoration'
+4. industry_category (varchar(50)) - 'ROOFING', 'RESTORATION', 'WINDOWS', 'HVAC', 'FLOORING'
+5. description (text) - Descripci�n detallada del tipo de proyecto
+6. estimated_duration_days (int) - Duraci�n estimada en d�as
+7. requires_permits (boolean, DEFAULT FALSE) - Si requiere permisos municipales
+8. requires_insurance_approval (boolean, DEFAULT FALSE) - Si requiere aprobaci�n de seguros
+9. default_warranty_months (int, DEFAULT 12) - Meses de garant�a por defecto
+10. profit_margin_target (decimal(5,2)) - Margen de ganancia objetivo (porcentaje)
+11. complexity_level (varchar(20)) - 'LOW', 'MEDIUM', 'HIGH', 'EXPERT'
+12. safety_requirements (json) - Requerimientos de seguridad en formato JSON
+13. typical_crew_size (int) - Tama�o t�pico del equipo de trabajo
+14. is_active (boolean, DEFAULT TRUE) - Estado activo del tipo
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, type_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Relaci�n 1:N con PROJECTS
+�ndices Sugeridos:
+* idx_project_types_org - Para consultas por organizaci�n
+* idx_project_types_industry - Para filtros por industria
+* idx_project_types_complexity - Para filtros por complejidad
+
+## TABLA 57: PROJECTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. project_type_id (int, FK ? PROJECT_TYPES) - Tipo de proyecto
+4. project_name (varchar(150)) - Nombre del proyecto template
+5. project_description (text) - Descripci�n detallada del proyecto
+6. is_insurance_project (boolean, DEFAULT FALSE) - Si maneja claims de seguros
+7. is_cash_project (boolean, DEFAULT TRUE) - Si maneja pagos en efectivo
+8. default_duration_days (int) - Duraci�n por defecto en d�as
+9. template_jobs (json) - Jobs incluidos en este proyecto template
+10. required_licenses (json) - Licencias requeridas para ejecutar
+11. environmental_considerations (text) - Consideraciones ambientales
+12. seasonal_restrictions (varchar(100)) - Restricciones por temporada
+13. is_template (boolean, DEFAULT TRUE) - Si es template reutilizable
+14. is_active (boolean, DEFAULT TRUE) - Estado activo del proyecto
+15. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� el template
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, project_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS, PROJECT_TYPES, CONTACTS
+* Relaci�n 1:N con JOBS, CUSTOMER_PROJECTS
+�ndices Sugeridos:
+* idx_projects_org - Para consultas por organizaci�n
+* idx_projects_type - Para filtros por tipo
+* idx_projects_insurance - Para proyectos de seguros
+
+## TABLA 58: JOBS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. job_name (varchar(100)) - Nombre del job: 'Roof Inspection', 'Shingle Installation'
+4. job_description (text) - Descripci�n detallada del trabajo
+5. job_category (varchar(50)) - 'INSPECTION', 'PREPARATION', 'INSTALLATION', 'CLEANUP'
+6. estimated_hours (decimal(6,2)) - Horas estimadas para completar
+7. required_skills (json) - Habilidades requeridas en formato JSON
+8. safety_requirements (json) - Requerimientos de seguridad espec�ficos
+9. tools_required (json) - Herramientas necesarias
+10. materials_template (json) - Template de materiales t�picamente usados
+11. quality_checklist (json) - Checklist de calidad para el job
+12. is_billable (boolean, DEFAULT TRUE) - Si se cobra al cliente
+13. is_subcontractable (boolean, DEFAULT FALSE) - Si se puede subcontratar
+14. default_sequence_order (int) - Orden t�pico en secuencia de proyecto
+15. is_weather_dependent (boolean, DEFAULT FALSE) - Si depende del clima
+16. is_active (boolean, DEFAULT TRUE) - Estado activo del job
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, job_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Relaci�n 1:N con PROJECT_JOBS, CUSTOMER_JOBS
+�ndices Sugeridos:
+* idx_jobs_org - Para consultas por organizaci�n
+* idx_jobs_category - Para filtros por categor�a
+* idx_jobs_billable - Para jobs facturables
+
+## TABLA 59: CUSTOMER_PROJECTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n ejecutora
+3. project_id (int, FK ? PROJECTS) - Template de proyecto utilizado
+4. customer_contact_id (int, FK ? CONTACTS) - Cliente del proyecto
+5. property_id (int, FK ? PROPERTIES) - Propiedad donde se ejecuta
+6. project_number (varchar(50), UNIQUE) - N�mero �nico del proyecto
+7. project_name (varchar(150)) - Nombre espec�fico del proyecto
+8. project_status (varchar(30)) - 'LEAD', 'QUOTED', 'APPROVED', 'IN_PROGRESS', 'COMPLETED'
+9. start_date (date) - Fecha de inicio planificada
+10. estimated_completion_date (date) - Fecha estimada de finalizaci�n
+11. actual_completion_date (date) - Fecha real de finalizaci�n
+12. total_contract_amount (decimal(12,2)) - Monto total del contrato
+13. total_cost (decimal(12,2)) - Costo total real del proyecto
+14. profit_margin (decimal(12,2)) - Margen de ganancia real
+15. is_insurance_claim (boolean, DEFAULT FALSE) - Si es claim de seguro
+16. insurance_claim_number (varchar(50)) - N�mero de claim (si aplica)
+17. deductible_amount (decimal(10,2)) - Deducible del seguro
+18. assigned_project_manager_id (int, FK ? CONTACTS) - Project manager asignado
+19. sales_rep_id (int, FK ? CONTACTS) - Sales rep que vendi� el proyecto
+20. contract_signed_date (date) - Fecha de firma del contrato
+21. permit_numbers (json) - N�meros de permisos obtenidos
+22. special_instructions (text) - Instrucciones especiales del cliente
+23. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+24. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(project_number) - N�meros de proyecto �nicos
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS, PROJECTS, CONTACTS (customer, PM, sales rep)
+* Relaci�n N:1 con PROPERTIES
+* Relaci�n 1:N con CUSTOMER_JOBS
+�ndices Sugeridos:
+* idx_customer_projects_org - Para consultas por organizaci�n
+* idx_customer_projects_customer - Para consultas por cliente
+* idx_customer_projects_status - Para filtros por estado
+* idx_customer_projects_pm - Para consultas por project manager
+
+## TABLA 60: CUSTOMER_JOBS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto al que pertenece
+3. job_id (int, FK ? JOBS) - Template de job utilizado
+4. job_name (varchar(100)) - Nombre espec�fico del job
+5. job_status (varchar(30)) - 'PENDING', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD'
+6. sequence_order (int) - Orden de ejecuci�n en el proyecto
+7. scheduled_start_date (date) - Fecha programada de inicio
+8. actual_start_date (date) - Fecha real de inicio
+9. scheduled_completion_date (date) - Fecha programada de finalizaci�n
+10. actual_completion_date (date) - Fecha real de finalizaci�n
+11. estimated_hours (decimal(6,2)) - Horas estimadas para este job espec�fico
+12. actual_hours (decimal(6,2)) - Horas realmente trabajadas
+13. assigned_crew_lead_id (int, FK ? CONTACTS) - L�der del equipo asignado
+14. crew_members (json) - Miembros del equipo en formato JSON
+15. materials_used (json) - Materiales realmente utilizados
+16. equipment_used (json) - Equipos utilizados
+17. quality_score (decimal(3,2)) - Puntuaci�n de calidad (1-10)
+18. customer_satisfaction (decimal(3,2)) - Satisfacci�n del cliente (1-10)
+19. notes (text) - Notas espec�ficas del job
+20. photos_urls (json) - URLs de fotos del progreso/finalizaci�n
+21. weather_conditions (varchar(100)) - Condiciones clim�ticas durante ejecuci�n
+22. safety_incidents (int, DEFAULT 0) - N�mero de incidentes de seguridad
+23. is_subcontracted (boolean, DEFAULT FALSE) - Si fue subcontratado
+24. subcontractor_contact_id (int, FK ? CONTACTS) - Subcontratista (si aplica)
+25. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+26. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(customer_project_id, sequence_order) - Orden �nico por proyecto
+Relaciones:
+* Relaci�n N:1 con CUSTOMER_PROJECTS, JOBS, CONTACTS (crew lead, subcontractor)
+�ndices Sugeridos:
+* idx_customer_jobs_project - Para consultas por proyecto
+* idx_customer_jobs_status - Para filtros por estado
+* idx_customer_jobs_crew_lead - Para consultas por l�der
+
+## TABLA 61: PROJECT_STATUSES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define el status
+3. status_name (varchar(50)) - Nombre del status: 'Lead', 'Quoted', 'In Progress'
+4. status_description (text) - Descripci�n del status
+5. status_order (int) - Orden en el pipeline del proyecto
+6. status_color (varchar(7)) - Color hexadecimal para UI (#FF5733)
+7. is_initial_status (boolean, DEFAULT FALSE) - Si es status inicial
+8. is_final_status (boolean, DEFAULT FALSE) - Si es status final
+9. requires_approval (boolean, DEFAULT FALSE) - Si requiere aprobaci�n para cambiar
+10. auto_notifications (json) - Notificaciones autom�ticas configuradas
+11. is_billable_status (boolean, DEFAULT FALSE) - Si en este status se puede facturar
+12. is_active (boolean, DEFAULT TRUE) - Estado activo del status
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, status_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+�ndices Sugeridos:
+* idx_project_statuses_org - Para consultas por organizaci�n
+* idx_project_statuses_order - Para ordenamiento del pipeline
+
+## TABLA 62: JOB_STATUSES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que define el status
+3. status_name (varchar(50)) - Nombre del status: 'Pending', 'Scheduled', 'Completed'
+4. status_description (text) - Descripci�n del status
+5. status_order (int) - Orden en el flujo de trabajo
+6. status_color (varchar(7)) - Color hexadecimal para UI
+7. is_initial_status (boolean, DEFAULT FALSE) - Si es status inicial
+8. is_final_status (boolean, DEFAULT FALSE) - Si es status final
+9. requires_photos (boolean, DEFAULT FALSE) - Si requiere fotos para completar
+10. requires_quality_check (boolean, DEFAULT FALSE) - Si requiere inspecci�n de calidad
+11. auto_schedule_next (boolean, DEFAULT FALSE) - Si programa autom�ticamente siguiente job
+12. is_active (boolean, DEFAULT TRUE) - Estado activo del status
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, status_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+�ndices Sugeridos:
+* idx_job_statuses_org - Para consultas por organizaci�n
+* idx_job_statuses_order - Para ordenamiento del flujo
+
+1.9 SEGUROS (5 TABLAS)
+## TABLA 63: INSURANCE_COMPANIES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. company_name (varchar(100)) - Nombre de la compa��a de seguros
+3. company_code (varchar(20)) - C�digo interno de la aseguradora
+4. contact_phone (varchar(20)) - Tel�fono principal de la aseguradora
+5. contact_email (varchar(100)) - Email de contacto principal
+6. claims_phone (varchar(20)) - Tel�fono espec�fico para claims
+7. claims_email (varchar(100)) - Email espec�fico para claims
+8. adjuster_portal_url (varchar(500)) - URL del portal de adjusters
+9. preferred_estimate_format (varchar(50)) - 'XACTIMATE', 'PDF', 'EXCEL', 'CUSTOM'
+10. typical_approval_time_days (int) - D�as t�picos para aprobaci�n
+11. requires_pre_approval (boolean, DEFAULT FALSE) - Si requiere pre-aprobaci�n
+12. deductible_collection_policy (varchar(50)) - Pol�tica de cobro de deducible
+13. payment_terms_days (int, DEFAULT 30) - T�rminos de pago en d�as
+14. is_preferred_carrier (boolean, DEFAULT FALSE) - Si es aseguradora preferida
+15. notes (text) - Notas sobre trabajar con esta aseguradora
+16. is_active (boolean, DEFAULT TRUE) - Estado activo
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(company_name) - Nombres de compa��a �nicos
+* UNIQUE(company_code) - C�digos �nicos
+Relaciones:
+* Relaci�n 1:N con INSURANCE_POLICIES
+�ndices Sugeridos:
+* idx_insurance_companies_name - Para b�squedas por nombre
+* idx_insurance_companies_preferred - Para aseguradoras preferidas
+
+## TABLA 64: INSURANCE_POLICIES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. property_id (int, FK ? PROPERTIES) - Propiedad asegurada
+3. insurance_company_id (int, FK ? INSURANCE_COMPANIES) - Compa��a aseguradora
+4. policy_number (varchar(50)) - N�mero de p�liza
+5. policy_holder_name (varchar(200)) - Nombre del titular de la p�liza
+6. effective_date (date) - Fecha de inicio de vigencia
+7. expiration_date (date) - Fecha de vencimiento
+8. coverage_amount (decimal(12,2)) - Monto total de cobertura
+9. deductible_amount (decimal(10,2)) - Deducible de la p�liza
+10. premium_annual (decimal(10,2)) - Prima anual
+11. agent_name (varchar(100)) - Nombre del agente de seguros
+12. agent_phone (varchar(20)) - Tel�fono del agente
+13. agent_email (varchar(100)) - Email del agente
+14. policy_type (varchar(50)) - 'HOMEOWNERS', 'COMMERCIAL', 'RENTERS', 'FLOOD'
+15. replacement_cost_coverage (boolean, DEFAULT TRUE) - Si tiene cobertura de costo de reemplazo
+16. is_active (boolean, DEFAULT TRUE) - Estado activo de la p�liza
+17. notes (text) - Notas adicionales sobre la p�liza
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(property_id, policy_number, insurance_company_id) - Combinaci�n �nica
+Relaciones:
+* Relaci�n N:1 con PROPERTIES y INSURANCE_COMPANIES
+* Relaci�n 1:N con INSURANCE_COVERAGES, INSURANCE_CLAIMS
+�ndices Sugeridos:
+* idx_insurance_policies_property - Para consultas por propiedad
+* idx_insurance_policies_company - Para consultas por aseguradora
+* idx_insurance_policies_expiration - Para p�lizas pr�ximas a vencer
+
+## TABLA 65: INSURANCE_COVERAGES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. insurance_policy_id (int, FK ? INSURANCE_POLICIES) - P�liza que incluye la cobertura
+3. coverage_type (varchar(50)) - 'DWELLING', 'PERSONAL_PROPERTY', 'LIABILITY', 'WIND', 'HAIL'
+4. coverage_description (varchar(200)) - Descripci�n de la cobertura
+5. coverage_limit (decimal(12,2)) - L�mite de cobertura
+6. deductible_amount (decimal(10,2)) - Deducible espec�fico para esta cobertura
+7. deductible_type (varchar(30)) - 'FLAT_AMOUNT', 'PERCENTAGE', 'NAMED_STORM'
+8. is_per_occurrence (boolean, DEFAULT TRUE) - Si es por ocurrencia o agregado
+9. exclusions (text) - Exclusiones espec�ficas de esta cobertura
+10. special_conditions (text) - Condiciones especiales
+11. is_active (boolean, DEFAULT TRUE) - Estado activo de la cobertura
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(insurance_policy_id, coverage_type) - Un tipo de cobertura por p�liza
+Relaciones:
+* Relaci�n N:1 con INSURANCE_POLICIES
+�ndices Sugeridos:
+* idx_insurance_coverages_policy - Para consultas por p�liza
+* idx_insurance_coverages_type - Para filtros por tipo de cobertura
+
+## TABLA 66: INSURANCE_CLAIMS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. insurance_policy_id (int, FK ? INSURANCE_POLICIES) - P�liza del claim
+3. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto asociado (si aplica)
+4. claim_number (varchar(50)) - N�mero �nico del claim
+5. date_of_loss (date) - Fecha de la p�rdida/da�o
+6. date_reported (date) - Fecha cuando se report� el claim
+7. cause_of_loss (varchar(100)) - Causa de la p�rdida: 'HAIL', 'WIND', 'WATER', 'FIRE'
+8. claim_description (text) - Descripci�n detallada del claim
+9. claim_status (varchar(30)) - 'REPORTED', 'UNDER_REVIEW', 'APPROVED', 'DENIED', 'CLOSED'
+10. adjuster_name (varchar(100)) - Nombre del adjuster asignado
+11. adjuster_phone (varchar(20)) - Tel�fono del adjuster
+12. adjuster_email (varchar(100)) - Email del adjuster
+13. initial_estimate_amount (decimal(12,2)) - Estimado inicial del claim
+14. approved_amount (decimal(12,2)) - Monto aprobado por la aseguradora
+15. deductible_collected (boolean, DEFAULT FALSE) - Si se cobr� el deducible
+16. deductible_collection_date (date) - Fecha cuando se cobr� el deducible
+17. first_payment_amount (decimal(10,2)) - Monto del primer pago
+18. first_payment_date (date) - Fecha del primer pago
+19. final_payment_amount (decimal(10,2)) - Monto del pago final
+20. final_payment_date (date) - Fecha del pago final
+21. total_paid (decimal(12,2)) - Total pagado por la aseguradora
+22. supplements_filed (int, DEFAULT 0) - N�mero de suplementos presentados
+23. is_large_loss (boolean, DEFAULT FALSE) - Si es p�rdida grande
+24. requires_engineer (boolean, DEFAULT FALSE) - Si requiere ingeniero estructural
+25. notes (text) - Notas sobre el claim
+26. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+27. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(claim_number) - N�meros de claim �nicos
+Relaciones:
+* Relaci�n N:1 con INSURANCE_POLICIES
+* Relaci�n N:1 con CUSTOMER_PROJECTS
+* Relaci�n 1:N con CLAIM_DOCUMENTS
+�ndices Sugeridos:
+* idx_insurance_claims_policy - Para consultas por p�liza
+* idx_insurance_claims_project - Para consultas por proyecto
+* idx_insurance_claims_status - Para filtros por estado
+* idx_insurance_claims_adjuster - Para consultas por adjuster
+
+## TABLA 67: CLAIM_DOCUMENTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. insurance_claim_id (int, FK ? INSURANCE_CLAIMS) - Claim al que pertenece
+3. document_type (varchar(50)) - 'ESTIMATE', 'PHOTOS', 'INVOICE', 'SUPPLEMENT', 'CORRESPONDENCE'
+4. document_name (varchar(255)) - Nombre descriptivo del documento
+5. file_url (varchar(500)) - URL del archivo en AWS S3
+6. file_name (varchar(255)) - Nombre original del archivo
+7. file_size (int) - Tama�o del archivo en bytes
+8. mime_type (varchar(100)) - Tipo MIME del archivo
+9. uploaded_by_contact_id (int, FK ? CONTACTS) - Quien subi� el documento
+10. submission_date (date) - Fecha de env�o a la aseguradora
+11. approval_status (varchar(20)) - 'PENDING', 'APPROVED', 'REJECTED', 'NEEDS_REVISION'
+12. approval_date (date) - Fecha de aprobaci�n/rechazo
+13. adjuster_comments (text) - Comentarios del adjuster
+14. is_required (boolean, DEFAULT FALSE) - Si es documento requerido
+15. version_number (int, DEFAULT 1) - N�mero de versi�n del documento
+16. replaces_document_id (int, FK ? CLAIM_DOCUMENTS) - Documento que reemplaza
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples documentos y versiones permitidas)
+Relaciones:
+* Relaci�n N:1 con INSURANCE_CLAIMS, CONTACTS
+* Auto-referencia para versiones de documentos
+�ndices Sugeridos:
+* idx_claim_documents_claim - Para consultas por claim
+* idx_claim_documents_type - Para filtros por tipo
+* idx_claim_documents_status - Para filtros por estado de aprobaci�n
+
+1.10 ESTIMADOS (4 TABLAS)
+## TABLA 68: ESTIMATES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n que genera el estimado
+3. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto para el cual se estima
+4. estimate_number (varchar(50), UNIQUE) - N�mero �nico del estimado
+5. estimate_name (varchar(150)) - Nombre descriptivo del estimado
+6. estimate_date (date) - Fecha de creaci�n del estimado
+7. valid_until_date (date) - Fecha de vencimiento del estimado
+8. estimate_type (varchar(30)) - 'INITIAL', 'REVISED', 'SUPPLEMENT', 'FINAL'
+9. subtotal_amount (decimal(12,2)) - Subtotal antes de descuentos e impuestos
+10. total_discount_amount (decimal(10,2)) - Total de descuentos aplicados
+11. tax_rate (decimal(5,4)) - Tasa de impuesto aplicable
+12. tax_amount (decimal(10,2)) - Monto de impuestos
+13. total_amount (decimal(12,2)) - Monto total final del estimado
+14. profit_margin_percentage (decimal(5,2)) - Margen de ganancia incluido
+15. overhead_percentage (decimal(5,2)) - Porcentaje de overhead incluido
+16. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� el estimado
+17. approved_by_contact_id (int, FK ? CONTACTS) - Quien aprob� el estimado
+18. status (varchar(20)) - 'DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'ACCEPTED', 'REJECTED'
+19. sent_to_customer_date (date) - Fecha de env�o al cliente
+20. customer_response_date (date) - Fecha de respuesta del cliente
+21. terms_and_conditions (text) - T�rminos y condiciones espec�ficos
+22. special_notes (text) - Notas especiales para el cliente
+23. xactimate_file_url (varchar(500)) - URL del archivo Xactimate en AWS S3
+24. pdf_url (varchar(500)) - URL del PDF generado en AWS S3
+25. is_insurance_estimate (boolean, DEFAULT FALSE) - Si es para claim de seguro
+26. replaces_estimate_id (int, FK ? ESTIMATES) - Estimado que reemplaza (revisiones)
+27. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+28. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(estimate_number) - N�meros de estimado �nicos
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS, CUSTOMER_PROJECTS, CONTACTS
+* Auto-referencia para revisiones de estimados
+* Relaci�n 1:N con ESTIMATE_SECTIONS
+�ndices Sugeridos:
+* idx_estimates_org - Para consultas por organizaci�n
+* idx_estimates_project - Para consultas por proyecto
+* idx_estimates_status - Para filtros por estado
+* idx_estimates_date - Para consultas por fecha
+
+## TABLA 69: ESTIMATE_SECTIONS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. estimate_id (int, FK ? ESTIMATES) - Estimado al que pertenece la secci�n
+3. section_name (varchar(100)) - Nombre de la secci�n: 'Roofing', 'Gutters', 'Cleanup'
+4. section_description (text) - Descripci�n detallada de la secci�n
+5. section_order (int) - Orden de la secci�n en el estimado
+6. section_subtotal (decimal(10,2)) - Subtotal de la secci�n
+7. labor_cost (decimal(10,2)) - Costo de mano de obra de la secci�n
+8. material_cost (decimal(10,2)) - Costo de materiales de la secci�n
+9. equipment_cost (decimal(8,2)) - Costo de equipos/herramientas
+10. overhead_amount (decimal(8,2)) - Overhead asignado a esta secci�n
+11. profit_amount (decimal(8,2)) - Ganancia asignada a esta secci�n
+12. is_optional (boolean, DEFAULT FALSE) - Si la secci�n es opcional
+13. is_allowance (boolean, DEFAULT FALSE) - Si es una allowance (estimado aproximado)
+14. warranty_period_months (int, DEFAULT 12) - Per�odo de garant�a para esta secci�n
+15. notes (text) - Notas espec�ficas de la secci�n
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(estimate_id, section_order) - Orden �nico por estimado
+Relaciones:
+* Relaci�n N:1 con ESTIMATES
+* Relaci�n 1:N con ESTIMATE_ITEMS
+�ndices Sugeridos:
+* idx_estimate_sections_estimate - Para consultas por estimado
+* idx_estimate_sections_order - Para ordenamiento
+
+## TABLA 70: ESTIMATE_ITEMS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. estimate_section_id (int, FK ? ESTIMATE_SECTIONS) - Secci�n a la que pertenece
+3. product_id (int, FK ? PRODUCTS) - Producto/servicio incluido (si aplica)
+4. item_code (varchar(50)) - C�digo del item (Xactimate u otro sistema)
+5. item_description (varchar(255)) - Descripci�n del item
+6. item_category (varchar(50)) - 'LABOR', 'MATERIAL', 'EQUIPMENT', 'SUBCONTRACT'
+7. quantity (decimal(10,4)) - Cantidad del item
+8. unit_of_measure (varchar(20)) - Unidad de medida: 'SQ', 'LF', 'EA', 'HR'
+9. unit_cost (decimal(8,4)) - Costo unitario
+10. total_cost (decimal(10,2)) - Costo total (quantity � unit_cost)
+11. waste_factor_percentage (decimal(5,2)) - Factor de desperdicio aplicado
+12. labor_hours_per_unit (decimal(6,4)) - Horas de trabajo por unidad
+13. total_labor_hours (decimal(8,2)) - Total de horas de trabajo
+14. material_markup_percentage (decimal(5,2)) - Markup aplicado a materiales
+15. is_taxable (boolean, DEFAULT TRUE) - Si el item est� sujeto a impuestos
+16. vendor_item_code (varchar(50)) - C�digo del proveedor para este item
+17. vendor_cost (decimal(8,4)) - Costo del proveedor (sin markup)
+18. notes (text) - Notas espec�ficas del item
+19. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+20. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples items con mismo c�digo permitidos)
+Relaciones:
+* Relaci�n N:1 con ESTIMATE_SECTIONS y PRODUCTS
+�ndices Sugeridos:
+* idx_estimate_items_section - Para consultas por secci�n
+* idx_estimate_items_product - Para consultas por producto
+* idx_estimate_items_category - Para filtros por categor�a
+
+## TABLA 71: ESTIMATE_DISCOUNTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. estimate_id (int, FK ? ESTIMATES) - Estimado al que se aplica el descuento
+3. estimate_section_id (int, FK ? ESTIMATE_SECTIONS) - Secci�n espec�fica (opcional)
+4. discount_name (varchar(100)) - Nombre del descuento: 'Senior Discount', 'Volume Discount'
+5. discount_type (varchar(20)) - 'PERCENTAGE', 'FIXED_AMOUNT', 'PER_UNIT'
+6. discount_value (decimal(8,4)) - Valor del descuento (porcentaje o monto)
+7. discount_amount (decimal(10,2)) - Monto total del descuento aplicado
+8. applies_to (varchar(30)) - 'TOTAL', 'LABOR_ONLY', 'MATERIALS_ONLY', 'SECTION'
+9. minimum_order_amount (decimal(10,2)) - Monto m�nimo para aplicar descuento
+10. maximum_discount_amount (decimal(8,2)) - Descuento m�ximo permitido
+11. discount_reason (varchar(100)) - Raz�n para el descuento
+12. authorized_by_contact_id (int, FK ? CONTACTS) - Quien autoriz� el descuento
+13. is_stackable (boolean, DEFAULT FALSE) - Si se puede combinar con otros descuentos
+14. expiration_date (date) - Fecha de vencimiento del descuento
+15. terms_and_conditions (text) - T�rminos espec�ficos del descuento
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna (m�ltiples descuentos permitidos)
+Relaciones:
+* Relaci�n N:1 con ESTIMATES, ESTIMATE_SECTIONS (opcional), CONTACTS
+�ndices Sugeridos:
+* idx_estimate_discounts_estimate - Para consultas por estimado
+* idx_estimate_discounts_type - Para filtros por tipo
+
+1.11 PRODUCTOS (3 TABLAS)
+## TABLA 72: PRODUCT_CATEGORIES M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. parent_category_id (int, FK ? PRODUCT_CATEGORIES) - Categor�a padre (jerarqu�a)
+4. category_name (varchar(100)) - Nombre de la categor�a: 'Roofing Materials', 'Shingles'
+5. category_description (text) - Descripci�n de la categor�a
+6. category_code (varchar(20)) - C�digo corto de la categor�a
+7. default_markup_percentage (decimal(5,2)) - Markup por defecto para productos
+8. default_warranty_months (int, DEFAULT 12) - Garant�a por defecto en meses
+9. requires_license (boolean, DEFAULT FALSE) - Si requiere licencia para instalar
+10. is_taxable (boolean, DEFAULT TRUE) - Si productos son gravables por defecto
+11. safety_requirements (json) - Requerimientos de seguridad en formato JSON
+12. environmental_considerations (text) - Consideraciones ambientales
+13. is_active (boolean, DEFAULT TRUE) - Estado activo de la categor�a
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, category_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS
+* Auto-referencia para jerarqu�a de categor�as
+* Relaci�n 1:N con PRODUCTS
+�ndices Sugeridos:
+* idx_product_categories_org - Para consultas por organizaci�n
+* idx_product_categories_parent - Para consultas jer�rquicas
+
+## TABLA 73: PRODUCTS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. product_category_id (int, FK ? PRODUCT_CATEGORIES) - Categor�a del producto
+4. product_name (varchar(150)) - Nombre del producto
+5. product_description (text) - Descripci�n detallada del producto
+6. manufacturer (varchar(100)) - Fabricante del producto
+7. model_number (varchar(100)) - N�mero de modelo del fabricante
+8. sku (varchar(50)) - SKU interno de la organizaci�n
+9. upc_code (varchar(20)) - C�digo UPC del producto
+10. source_type (varchar(30)) - 'XACTIMATE', 'CUSTOM', 'VENDOR', 'MANUAL'
+11. item_code (varchar(50)) - C�digo del item en sistema fuente
+12. unit_of_measure (varchar(20)) - Unidad de medida: 'SQ', 'LF', 'EA', 'GAL'
+13. cost_per_unit (decimal(8,4)) - Costo por unidad
+14. markup_percentage (decimal(5,2)) - Porcentaje de markup aplicado
+15. selling_price_per_unit (decimal(8,4)) - Precio de venta por unidad
+16. labor_hours_per_unit (decimal(6,4)) - Horas de trabajo por unidad
+17. weight_per_unit (decimal(8,4)) - Peso por unidad (para shipping)
+18. dimensions (varchar(50)) - Dimensiones del producto
+19. color_options (json) - Opciones de color disponibles
+20. warranty_months (int, DEFAULT 12) - Meses de garant�a
+21. minimum_order_quantity (int, DEFAULT 1) - Cantidad m�nima de pedido
+22. lead_time_days (int, DEFAULT 0) - D�as de tiempo de entrega
+23. is_special_order (boolean, DEFAULT FALSE) - Si es pedido especial
+24. is_taxable (boolean, DEFAULT TRUE) - Si est� sujeto a impuestos
+25. is_active (boolean, DEFAULT TRUE) - Estado activo del producto
+26. last_cost_update (date) - �ltima actualizaci�n de costo
+27. vendor_contact_info (json) - Informaci�n de contacto del proveedor
+28. installation_notes (text) - Notas de instalaci�n
+29. product_image_url (varchar(500)) - URL de imagen del producto en AWS S3
+30. datasheet_url (varchar(500)) - URL de hoja de datos t�cnicos
+31. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+32. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(source_type, item_code) - C�digos �nicos por fuente
+* UNIQUE(organization_id, sku) - SKUs �nicos por organizaci�n
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS y PRODUCT_CATEGORIES
+* Relaci�n 1:N con XACTIMATE_PRODUCT_DETAILS, ESTIMATE_ITEMS
+�ndices Sugeridos:
+* idx_products_org - Para consultas por organizaci�n
+* idx_products_category - Para filtros por categor�a
+* idx_products_manufacturer - Para b�squedas por fabricante
+* idx_products_sku - Para b�squedas por SKU
+
+## TABLA 74: XACTIMATE_PRODUCT_DETAILS M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. product_id (int, FK ? PRODUCTS) - Producto asociado
+3. xactimate_code (varchar(20)) - C�digo Xactimate del item
+4. xactimate_description (varchar(255)) - Descripci�n oficial de Xactimate
+5. xactimate_category (varchar(50)) - Categor�a en Xactimate
+6. unit_of_measure (varchar(10)) - Unidad de medida en Xactimate
+7. base_cost (decimal(8,4)) - Costo base de Xactimate
+8. regional_multiplier (decimal(6,4)) - Multiplicador regional aplicado
+9. effective_cost (decimal(8,4)) - Costo efectivo con multiplicador
+10. labor_cost_component (decimal(8,4)) - Componente de costo de mano de obra
+11. material_cost_component (decimal(8,4)) - Componente de costo de material
+12. equipment_cost_component (decimal(8,4)) - Componente de costo de equipo
+13. overhead_and_profit_rate (decimal(5,4)) - Tasa de overhead y ganancia
+14. waste_factor (decimal(5,4)) - Factor de desperdicio est�ndar
+15. crew_size (int) - Tama�o de cuadrilla est�ndar
+16. production_rate (decimal(8,4)) - Tasa de producci�n (unidades por hora)
+17. last_xactimate_update (date) - �ltima actualizaci�n de Xactimate
+18. price_list_version (varchar(20)) - Versi�n de lista de precios de Xactimate
+19. is_deprecated (boolean, DEFAULT FALSE) - Si el c�digo est� deprecado
+20. replacement_code (varchar(20)) - C�digo de reemplazo si est� deprecado
+21. notes (text) - Notas adicionales sobre el item de Xactimate
+22. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+23. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(product_id) - Un detalle Xactimate por producto
+* UNIQUE(xactimate_code) - C�digos Xactimate �nicos
+Relaciones:
+* Relaci�n 1:1 con PRODUCTS
+�ndices Sugeridos:
+* idx_xactimate_details_product - Para consultas por producto
+* idx_xactimate_details_code - Para b�squedas por c�digo Xactimate
+* idx_xactimate_details_category - Para filtros por categor�a
+
+1.12 AUDITOR�A (1 TABLA)
+## TABLA 75: AUDIT_LOG M�dulo: BASE FOUNDATION
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n donde ocurri� la acci�n
+3. table_name (varchar(100)) - Nombre de la tabla afectada
+4. record_id (int) - ID del registro afectado
+5. action_type (varchar(20)) - 'INSERT', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'
+6. changed_by_contact_id (int, FK ? CONTACTS) - Usuario que realiz� el cambio
+7. changed_by_user_id (int, FK ? USERS) - Usuario autenticado que hizo el cambio
+8. change_timestamp (timestamp, DEFAULT NOW()) - Cu�ndo ocurri� el cambio
+9. ip_address (varchar(45)) - Direcci�n IP desde donde se hizo el cambio
+10. user_agent (text) - User agent del navegador/aplicaci�n
+11. old_values (json) - Valores anteriores (para UPDATE y DELETE)
+12. new_values (json) - Valores nuevos (para INSERT y UPDATE)
+13. changed_fields (json) - Lista de campos que cambiaron
+14. reason (varchar(255)) - Raz�n del cambio (si fue proporcionada)
+15. session_id (varchar(255)) - ID de la sesi�n del usuario
+16. request_id (varchar(100)) - ID �nico de la request HTTP
+17. transaction_id (varchar(100)) - ID de la transacci�n de base de datos
+18. severity_level (varchar(20)) - 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+19. is_sensitive_data (boolean, DEFAULT FALSE) - Si involucra datos sensibles
+20. compliance_flags (json) - Flags para compliance regulatorio
+21. retention_until (date) - Hasta cu�ndo retener este registro de auditor�a
+22. additional_context (json) - Contexto adicional en formato JSON
+Restricciones �nicas:
+* Ninguna (m�ltiples entradas de auditor�a permitidas)
+Relaciones:
+* Relaci�n N:1 con ORGANIZATIONS, CONTACTS, USERS
+�ndices Sugeridos:
+* idx_audit_log_org - Para consultas por organizaci�n
+* idx_audit_log_table_record - Para consultas por tabla/registro espec�fico
+* idx_audit_log_user - Para consultas por usuario
+* idx_audit_log_timestamp - Para consultas por per�odo de tiempo
+* idx_audit_log_action_type - Para filtros por tipo de acci�n
+* idx_audit_log_sensitive - Para datos sensibles
+* idx_audit_log_retention - Para cleanup autom�tico

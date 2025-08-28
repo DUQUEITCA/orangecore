@@ -1,0 +1,1 @@
+ok Gemini, ayudame con esto, te voy a dar un archivo .txt, el cual contiene la definición de tablas, necesito que me des la definición respectiva para generar estas tablas con sus respectivas demás entidades, dentro de un esquema que se llama base_foundation. ¡Sorprendeme!
