@@ -1,0 +1,607 @@
+CREATE SCHEMA IF NOT EXISTS reports_business_intelligence;
+SET search_path TO reports_business_intelligence;
+
+-- TABLA 310: DASHBOARD_DEFINITIONS
+-- Define los dashboards personalizados de la organización.
+CREATE TABLE reports_business_intelligence.dashboard_definitions (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    dashboard_name VARCHAR(100) NOT NULL,
+    dashboard_category VARCHAR(50),
+    target_audience VARCHAR(30),
+    layout_config JSON,
+    filter_defaults JSON,
+    is_public BOOLEAN DEFAULT FALSE,
+    is_template BOOLEAN DEFAULT FALSE,
+    created_by_contact_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, dashboard_name),
+    CONSTRAINT fk_dashboard_definitions_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_dashboard_definitions_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_dashboard_org_category ON reports_business_intelligence.dashboard_definitions (organization_id, dashboard_category);
+CREATE INDEX idx_dashboard_audience ON reports_business_intelligence.dashboard_definitions (target_audience);
+CREATE INDEX idx_dashboard_active ON reports_business_intelligence.dashboard_definitions (is_active);
+
+-- TABLA 311: DASHBOARD_WIDGETS
+-- Componentes de un dashboard.
+CREATE TABLE reports_business_intelligence.dashboard_widgets (
+    id SERIAL PRIMARY KEY,
+    dashboard_definition_id INTEGER NOT NULL,
+    widget_name VARCHAR(100),
+    widget_type VARCHAR(30),
+    widget_config JSON,
+    data_source_config JSON,
+    position_x INTEGER,
+    position_y INTEGER,
+    width INTEGER,
+    height INTEGER,
+    is_visible BOOLEAN DEFAULT TRUE,
+    refresh_interval_minutes INTEGER DEFAULT 15,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_dashboard_widgets_dashboard FOREIGN KEY (dashboard_definition_id) REFERENCES reports_business_intelligence.dashboard_definitions(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_widget_dashboard ON reports_business_intelligence.dashboard_widgets (dashboard_definition_id);
+CREATE INDEX idx_widget_type ON reports_business_intelligence.dashboard_widgets (widget_type);
+CREATE INDEX idx_widget_position ON reports_business_intelligence.dashboard_widgets (position_x, position_y);
+
+-- TABLA 312: DASHBOARD_PERMISSIONS
+-- Control de acceso granular para los dashboards.
+CREATE TABLE reports_business_intelligence.dashboard_permissions (
+    id SERIAL PRIMARY KEY,
+    dashboard_definition_id INTEGER NOT NULL,
+    contact_id INTEGER NOT NULL,
+    permission_level VARCHAR(20),
+    can_edit BOOLEAN DEFAULT FALSE,
+    can_share BOOLEAN DEFAULT FALSE,
+    granted_by_contact_id INTEGER,
+    granted_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_dashboard_permissions_dashboard FOREIGN KEY (dashboard_definition_id) REFERENCES reports_business_intelligence.dashboard_definitions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dashboard_permissions_contact FOREIGN KEY (contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_dashboard_permissions_granted_by FOREIGN KEY (granted_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_dashboard_permissions_contact ON reports_business_intelligence.dashboard_permissions (contact_id);
+CREATE INDEX idx_dashboard_permissions_level ON reports_business_intelligence.dashboard_permissions (permission_level);
+CREATE INDEX idx_dashboard_permissions_granted ON reports_business_intelligence.dashboard_permissions (granted_by_contact_id);
+
+-- TABLA 314: REPORT_DEFINITIONS
+-- Define los reportes del sistema.
+CREATE TABLE reports_business_intelligence.report_definitions (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    report_name VARCHAR(100) NOT NULL,
+    report_category VARCHAR(50),
+    report_type VARCHAR(30),
+    report_description TEXT,
+    sql_query TEXT,
+    parameters_schema JSON,
+    output_formats JSON,
+    template_config JSON,
+    data_sources JSON,
+    estimated_execution_time INTEGER,
+    cache_duration_minutes INTEGER DEFAULT 60,
+    requires_approval BOOLEAN DEFAULT FALSE,
+    is_public BOOLEAN DEFAULT FALSE,
+    created_by_contact_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, report_name),
+    CONSTRAINT fk_report_definitions_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_report_definitions_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_report_org_category ON reports_business_intelligence.report_definitions (organization_id, report_category);
+CREATE INDEX idx_report_active ON reports_business_intelligence.report_definitions (is_active);
+CREATE INDEX idx_report_execution_time ON reports_business_intelligence.report_definitions (estimated_execution_time);
+
+-- TABLA 315: REPORT_SCHEDULES
+-- Programa la ejecución automática de reportes.
+CREATE TABLE reports_business_intelligence.report_schedules (
+    id SERIAL PRIMARY KEY,
+    report_definition_id INTEGER NOT NULL,
+    schedule_name VARCHAR(100),
+    cron_expression VARCHAR(50),
+    timezone VARCHAR(50),
+    recipient_emails JSON,
+    delivery_format VARCHAR(20),
+    parameters JSON,
+    is_active BOOLEAN DEFAULT TRUE,
+    next_execution_at TIMESTAMP,
+    last_execution_at TIMESTAMP,
+    total_scheduled_executions INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_report_schedules_report FOREIGN KEY (report_definition_id) REFERENCES reports_business_intelligence.report_definitions(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_schedule_report ON reports_business_intelligence.report_schedules (report_definition_id);
+CREATE INDEX idx_schedule_next_execution ON reports_business_intelligence.report_schedules (next_execution_at);
+CREATE INDEX idx_schedule_active ON reports_business_intelligence.report_schedules (is_active);
+
+-- TABLA 316: REPORT_EXECUTIONS
+-- Registra cada ejecución de un reporte.
+CREATE TABLE reports_business_intelligence.report_executions (
+    id SERIAL PRIMARY KEY,
+    report_definition_id INTEGER NOT NULL,
+    execution_type VARCHAR(20),
+    parameters_used JSON,
+    execution_status VARCHAR(20),
+    output_url VARCHAR(255),
+    output_format VARCHAR(20),
+    total_records INTEGER,
+    execution_time_seconds DECIMAL(8,2),
+    error_message TEXT,
+    executed_by_contact_id INTEGER,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_report_executions_report FOREIGN KEY (report_definition_id) REFERENCES reports_business_intelligence.report_definitions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_report_executions_contact FOREIGN KEY (executed_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_execution_report ON reports_business_intelligence.report_executions (report_definition_id);
+CREATE INDEX idx_execution_status ON reports_business_intelligence.report_executions (execution_status);
+CREATE INDEX idx_execution_contact ON reports_business_intelligence.report_executions (executed_by_contact_id);
+CREATE INDEX idx_execution_completed ON reports_business_intelligence.report_executions (completed_at);
+
+-- TABLA 317: REPORT_PERMISSIONS
+-- Control de acceso granular para los reportes.
+CREATE TABLE reports_business_intelligence.report_permissions (
+    id SERIAL PRIMARY KEY,
+    report_definition_id INTEGER NOT NULL,
+    contact_id INTEGER NOT NULL,
+    permission_level VARCHAR(20),
+    can_execute BOOLEAN DEFAULT FALSE,
+    can_schedule BOOLEAN DEFAULT FALSE,
+    can_modify_parameters BOOLEAN DEFAULT FALSE,
+    granted_by_contact_id INTEGER,
+    granted_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_report_permissions_report FOREIGN KEY (report_definition_id) REFERENCES reports_business_intelligence.report_definitions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_report_permissions_contact FOREIGN KEY (contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_report_permissions_granted_by FOREIGN KEY (granted_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_report_permissions_contact ON reports_business_intelligence.report_permissions (contact_id);
+CREATE INDEX idx_report_permissions_level ON reports_business_intelligence.report_permissions (permission_level);
+CREATE INDEX idx_report_permissions_granted ON reports_business_intelligence.report_permissions (granted_by_contact_id);
+
+-- TABLA 318: KPI_DEFINITIONS
+-- Define los indicadores clave de rendimiento (KPIs).
+CREATE TABLE reports_business_intelligence.kpi_definitions (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    kpi_name VARCHAR(100) NOT NULL,
+    kpi_category VARCHAR(50),
+    kpi_type VARCHAR(30),
+    calculation_formula TEXT,
+    data_sources JSON,
+    calculation_frequency VARCHAR(20),
+    target_value DECIMAL(12,2),
+    warning_threshold DECIMAL(12,2),
+    critical_threshold DECIMAL(12,2),
+    trend_direction_preference VARCHAR(10),
+    benchmark_data JSON,
+    is_visible_dashboard BOOLEAN DEFAULT TRUE,
+    chart_type VARCHAR(20),
+    unit_of_measure VARCHAR(20),
+    created_by_contact_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, kpi_name),
+    CONSTRAINT fk_kpi_definitions_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_kpi_definitions_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_kpi_org_category ON reports_business_intelligence.kpi_definitions (organization_id, kpi_category);
+CREATE INDEX idx_kpi_frequency ON reports_business_intelligence.kpi_definitions (calculation_frequency);
+CREATE INDEX idx_kpi_active ON reports_business_intelligence.kpi_definitions (is_active);
+
+-- TABLA 319: KPI_VALUES
+-- Almacena los valores calculados de los KPIs.
+CREATE TABLE reports_business_intelligence.kpi_values (
+    id SERIAL PRIMARY KEY,
+    kpi_definition_id INTEGER NOT NULL,
+    calculation_date DATE,
+    calculation_time TIME,
+    calculated_value DECIMAL(12,2),
+    target_value DECIMAL(12,2),
+    variance_amount DECIMAL(12,2),
+    variance_percentage DECIMAL(5,2),
+    performance_status VARCHAR(20),
+    trend_direction VARCHAR(10),
+    contributing_factors JSON,
+    drill_down_data JSON,
+    confidence_score DECIMAL(5,2),
+    benchmark_comparison JSON,
+    calculated_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_kpi_values_kpi FOREIGN KEY (kpi_definition_id) REFERENCES reports_business_intelligence.kpi_definitions(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_kpi_value_definition_date ON reports_business_intelligence.kpi_values (kpi_definition_id, calculation_date);
+CREATE INDEX idx_kpi_value_status ON reports_business_intelligence.kpi_values (performance_status);
+CREATE INDEX idx_kpi_value_calculated ON reports_business_intelligence.kpi_values (calculated_at);
+
+-- TABLA 320: KPI_ALERTS
+-- Registra las alertas generadas por los KPIs.
+CREATE TABLE reports_business_intelligence.kpi_alerts (
+    id SERIAL PRIMARY KEY,
+    kpi_definition_id INTEGER NOT NULL,
+    kpi_value_id INTEGER NOT NULL,
+    alert_type VARCHAR(20),
+    alert_message TEXT,
+    threshold_breached DECIMAL(12,2),
+    actual_value DECIMAL(12,2),
+    severity_level INTEGER,
+    notification_sent BOOLEAN DEFAULT FALSE,
+    acknowledged_by_contact_id INTEGER,
+    acknowledged_at TIMESTAMP,
+    resolution_notes TEXT,
+    auto_resolved BOOLEAN DEFAULT FALSE,
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_kpi_alerts_kpi FOREIGN KEY (kpi_definition_id) REFERENCES reports_business_intelligence.kpi_definitions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_kpi_alerts_value FOREIGN KEY (kpi_value_id) REFERENCES reports_business_intelligence.kpi_values(id) ON DELETE CASCADE,
+    CONSTRAINT fk_kpi_alerts_contact FOREIGN KEY (acknowledged_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_alert_kpi_definition ON reports_business_intelligence.kpi_alerts (kpi_definition_id);
+CREATE INDEX idx_alert_type_severity ON reports_business_intelligence.kpi_alerts (alert_type, severity_level);
+CREATE INDEX idx_alert_acknowledged ON reports_business_intelligence.kpi_alerts (acknowledged_by_contact_id);
+
+-- TABLA 313: DASHBOARD_SNAPSHOTS
+-- Capturas de dashboards generadas.
+CREATE TABLE reports_business_intelligence.dashboard_snapshots (
+    id SERIAL PRIMARY KEY,
+    dashboard_definition_id INTEGER NOT NULL,
+    snapshot_name VARCHAR(100),
+    snapshot_format VARCHAR(20),
+    snapshot_data JSON,
+    snapshot_url VARCHAR(255),
+    generated_for_contact_id INTEGER,
+    schedule_id INTEGER,
+    generated_at TIMESTAMP DEFAULT NOW(),
+    file_size_bytes INTEGER,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_dashboard_snapshots_dashboard FOREIGN KEY (dashboard_definition_id) REFERENCES reports_business_intelligence.dashboard_definitions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dashboard_snapshots_contact FOREIGN KEY (generated_for_contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_dashboard_snapshots_schedule FOREIGN KEY (schedule_id) REFERENCES reports_business_intelligence.dashboard_schedules(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_snapshot_dashboard ON reports_business_intelligence.dashboard_snapshots (dashboard_definition_id);
+CREATE INDEX idx_snapshot_contact ON reports_business_intelligence.dashboard_snapshots (generated_for_contact_id);
+CREATE INDEX idx_snapshot_expires ON reports_business_intelligence.dashboard_snapshots (expires_at);
+
+-- TABLA 321: KPI_BENCHMARKS
+-- Puntos de referencia de la industria para comparación de KPIs.
+CREATE TABLE reports_business_intelligence.kpi_benchmarks (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    kpi_definition_id INTEGER NOT NULL,
+    benchmark_name VARCHAR(100) NOT NULL,
+    industry_segment VARCHAR(100),
+    benchmark_value DECIMAL(12,2),
+    benchmark_source VARCHAR(100),
+    publication_date DATE,
+    notes TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_kpi_benchmarks_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_kpi_benchmarks_kpi FOREIGN KEY (kpi_definition_id) REFERENCES reports_business_intelligence.kpi_definitions(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_kpi_benchmarks_kpi ON reports_business_intelligence.kpi_benchmarks (kpi_definition_id);
+CREATE INDEX idx_kpi_benchmarks_industry ON reports_business_intelligence.kpi_benchmarks (industry_segment);
+
+-- TABLA 322: ETL_JOBS
+-- Define y rastrea trabajos de Extracción, Transformación y Carga (ETL).
+CREATE TABLE reports_business_intelligence.etl_jobs (
+    id SERIAL PRIMARY KEY,
+    job_name VARCHAR(100) NOT NULL,
+    job_description TEXT,
+    source_database VARCHAR(50),
+    source_table VARCHAR(100),
+    destination_table VARCHAR(100) NOT NULL,
+    transformation_script TEXT,
+    schedule_cron VARCHAR(50),
+    last_run_at TIMESTAMP,
+    last_run_status VARCHAR(20),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(job_name),
+    CONSTRAINT fk_etl_jobs_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_etl_jobs_status ON reports_business_intelligence.etl_jobs (last_run_status);
+CREATE INDEX idx_etl_jobs_schedule ON reports_business_intelligence.etl_jobs (schedule_cron);
+
+-- TABLA 323: DATA_QUALITY_CHECKS
+-- Define y almacena los resultados de verificaciones de calidad de datos.
+CREATE TABLE reports_business_intelligence.data_quality_checks (
+    id SERIAL PRIMARY KEY,
+    etl_job_id INTEGER,
+    check_name VARCHAR(100) NOT NULL,
+    check_type VARCHAR(50),
+    check_description TEXT,
+    check_status VARCHAR(20),
+    check_results JSON,
+    checked_table VARCHAR(100),
+    checked_column VARCHAR(100),
+    checked_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_data_quality_checks_job FOREIGN KEY (etl_job_id) REFERENCES reports_business_intelligence.etl_jobs(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_data_quality_checks_status ON reports_business_intelligence.data_quality_checks (check_status);
+CREATE INDEX idx_data_quality_checks_table ON reports_business_intelligence.data_quality_checks (checked_table);
+
+-- TABLA 324: QUERY_OPTIMIZATIONS
+-- Registra las optimizaciones sugeridas y aplicadas a las consultas de reportes.
+CREATE TABLE reports_business_intelligence.query_optimizations (
+    id SERIAL PRIMARY KEY,
+    report_definition_id INTEGER,
+    kpi_definition_id INTEGER,
+    suggestion_type VARCHAR(50),
+    suggestion_details JSON,
+    suggested_by_ai BOOLEAN DEFAULT TRUE,
+    is_applied BOOLEAN DEFAULT FALSE,
+    applied_at TIMESTAMP,
+    performance_gain_percentage DECIMAL(5,2),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_query_optimizations_report FOREIGN KEY (report_definition_id) REFERENCES reports_business_intelligence.report_definitions(id),
+    CONSTRAINT fk_query_optimizations_kpi FOREIGN KEY (kpi_definition_id) REFERENCES reports_business_intelligence.kpi_definitions(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_query_optimizations_report ON reports_business_intelligence.query_optimizations (report_definition_id);
+CREATE INDEX idx_query_optimizations_kpi ON reports_business_intelligence.query_optimizations (kpi_definition_id);
+CREATE INDEX idx_query_optimizations_applied ON reports_business_intelligence.query_optimizations (is_applied, suggestion_type);
+
+-- TABLA 325: DASHBOARD_SCHEDULES
+-- Programa la generación y envío de snapshots de dashboards.
+CREATE TABLE reports_business_intelligence.dashboard_schedules (
+    id SERIAL PRIMARY KEY,
+    dashboard_definition_id INTEGER NOT NULL,
+    schedule_name VARCHAR(100),
+    cron_expression VARCHAR(50),
+    timezone VARCHAR(50),
+    recipient_emails JSON,
+    delivery_format VARCHAR(20),
+    is_active BOOLEAN DEFAULT TRUE,
+    next_execution_at TIMESTAMP,
+    last_execution_at TIMESTAMP,
+    total_scheduled_executions INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_dashboard_schedules_dashboard FOREIGN KEY (dashboard_definition_id) REFERENCES reports_business_intelligence.dashboard_definitions(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_dash_schedule_dash ON reports_business_intelligence.dashboard_schedules (dashboard_definition_id);
+CREATE INDEX idx_dash_schedule_next_exec ON reports_business_intelligence.dashboard_schedules (next_execution_at);
+CREATE INDEX idx_dash_schedule_active ON reports_business_intelligence.dashboard_schedules (is_active);
+
+-- TABLA 326: AI_INSIGHT_LOG
+-- Registra los insights y recomendaciones generados por IA.
+CREATE TABLE reports_business_intelligence.ai_insight_log (
+    id SERIAL PRIMARY KEY,
+    insight_type VARCHAR(50),
+    insight_source_table VARCHAR(100),
+    insight_source_id INTEGER,
+    insight_content TEXT,
+    confidence_score DECIMAL(5,2),
+    is_actionable BOOLEAN DEFAULT FALSE,
+    action_taken BOOLEAN DEFAULT FALSE,
+    action_notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para optimización
+CREATE INDEX idx_ai_insight_source ON reports_business_intelligence.ai_insight_log (insight_source_table, insight_source_id);
+CREATE INDEX idx_ai_insight_action ON reports_business_intelligence.ai_insight_log (is_actionable, action_taken);
+CREATE INDEX idx_ai_insight_type ON reports_business_intelligence.ai_insight_log (insight_type);
+
+-- TABLA 327: DATA_WAREHOUSE_TABLES
+-- Catálogo de tablas en el data warehouse para BI.
+CREATE TABLE reports_business_intelligence.data_warehouse_tables (
+    id SERIAL PRIMARY KEY,
+    table_name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    source_system VARCHAR(50),
+    ingestion_frequency VARCHAR(20),
+    last_updated_at TIMESTAMP,
+    row_count BIGINT,
+    data_classification VARCHAR(20),
+    schema_definition JSON,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para optimización
+CREATE INDEX idx_dw_table_name ON reports_business_intelligence.data_warehouse_tables (table_name);
+CREATE INDEX idx_dw_ingestion_frequency ON reports_business_intelligence.data_warehouse_tables (ingestion_frequency);
+
+-- TABLA 328: DATA_DICTIONARY
+-- Diccionario de datos para columnas y métricas del data warehouse.
+CREATE TABLE reports_business_intelligence.data_dictionary (
+    id SERIAL PRIMARY KEY,
+    table_id INTEGER NOT NULL,
+    column_name VARCHAR(100) NOT NULL,
+    data_type VARCHAR(50),
+    description TEXT,
+    business_definition TEXT,
+    is_metric BOOLEAN DEFAULT FALSE,
+    metric_formula TEXT,
+    data_owner_contact_id INTEGER,
+    is_pii BOOLEAN DEFAULT FALSE,
+    last_updated_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_data_dictionary_table FOREIGN KEY (table_id) REFERENCES reports_business_intelligence.data_warehouse_tables(id) ON DELETE CASCADE,
+    CONSTRAINT fk_data_dictionary_owner FOREIGN KEY (data_owner_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_data_dict_table_column ON reports_business_intelligence.data_dictionary (table_id, column_name);
+CREATE INDEX idx_data_dict_owner ON reports_business_intelligence.data_dictionary (data_owner_contact_id);
+
+-- TABLA 329: CACHE_REPORTS
+-- Almacena reportes generados en caché para un acceso rápido.
+CREATE TABLE reports_business_intelligence.cache_reports (
+    id SERIAL PRIMARY KEY,
+    report_definition_id INTEGER NOT NULL,
+    cache_key VARCHAR(255) NOT NULL UNIQUE,
+    cached_data JSON,
+    expires_at TIMESTAMP,
+    file_size_bytes INTEGER,
+    access_count INTEGER DEFAULT 0,
+    last_accessed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_cache_reports_report FOREIGN KEY (report_definition_id) REFERENCES reports_business_intelligence.report_definitions(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_cache_report_key ON reports_business_intelligence.cache_reports (report_definition_id, cache_key);
+CREATE INDEX idx_cache_expires ON reports_business_intelligence.cache_reports (expires_at);
+CREATE INDEX idx_cache_access_count ON reports_business_intelligence.cache_reports (access_count);
+
+-- TABLA 330: PERFORMANCE_MONITORING
+-- Registra métricas de rendimiento del sistema de BI.
+CREATE TABLE reports_business_intelligence.performance_monitoring (
+    id SERIAL PRIMARY KEY,
+    metric_name VARCHAR(100) NOT NULL,
+    metric_value DECIMAL(10,2),
+    entity_type VARCHAR(50),
+    entity_id INTEGER,
+    timestamp_recorded TIMESTAMP DEFAULT NOW(),
+    additional_data JSON,
+    is_alert BOOLEAN DEFAULT FALSE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_perf_monitor_name ON reports_business_intelligence.performance_monitoring (metric_name);
+CREATE INDEX idx_perf_monitor_entity ON reports_business_intelligence.performance_monitoring (entity_type, entity_id);
+
+-- TABLA 331: REPORT_ACCESS_LOG
+-- Registra el acceso a reportes y dashboards para auditoría.
+CREATE TABLE reports_business_intelligence.report_access_log (
+    id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(50),
+    entity_id INTEGER NOT NULL,
+    contact_id INTEGER NOT NULL,
+    access_timestamp TIMESTAMP DEFAULT NOW(),
+    action_type VARCHAR(20),
+    access_details JSON,
+    CONSTRAINT fk_report_access_log_contact FOREIGN KEY (contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_report_access_log_entity ON reports_business_intelligence.report_access_log (entity_type, entity_id);
+CREATE INDEX idx_report_access_log_contact ON reports_business_intelligence.report_access_log (contact_id);
+
+-- TABLA 332: USER_ANALYTICS
+-- Registra la actividad de los usuarios en los dashboards y reportes.
+CREATE TABLE reports_business_intelligence.user_analytics (
+    id SERIAL PRIMARY KEY,
+    contact_id INTEGER NOT NULL,
+    organization_id INTEGER,
+    activity_type VARCHAR(50),
+    activity_details JSON,
+    session_id VARCHAR(100),
+    device_info JSON,
+    ip_address VARCHAR(45),
+    timestamp_recorded TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_user_analytics_contact FOREIGN KEY (contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_user_analytics_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_user_analytics_contact ON reports_business_intelligence.user_analytics (contact_id);
+CREATE INDEX idx_user_analytics_activity ON reports_business_intelligence.user_analytics (activity_type);
+
+-- TABLA 333: AI_DATA_PREPARATION
+-- Registra las tareas de preparación de datos asistidas por IA.
+CREATE TABLE reports_business_intelligence.ai_data_preparation (
+    id SERIAL PRIMARY KEY,
+    etl_job_id INTEGER,
+    task_type VARCHAR(50),
+    task_status VARCHAR(20),
+    input_data_sample JSON,
+    output_data_sample JSON,
+    ai_confidence DECIMAL(5,2),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_ai_data_prep_job FOREIGN KEY (etl_job_id) REFERENCES reports_business_intelligence.etl_jobs(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_ai_data_prep_job ON reports_business_intelligence.ai_data_preparation (etl_job_id);
+CREATE INDEX idx_ai_data_prep_status ON reports_business_intelligence.ai_data_preparation (task_status);
+
+-- TABLA 334: REPORT_PERFORMANCE_METRICS
+-- Métricas de rendimiento detalladas para cada reporte.
+CREATE TABLE reports_business_intelligence.report_performance_metrics (
+    id SERIAL PRIMARY KEY,
+    report_definition_id INTEGER NOT NULL,
+    execution_id INTEGER NOT NULL,
+    execution_time_ms INTEGER,
+    memory_usage_mb DECIMAL(8,2),
+    cpu_usage_percentage DECIMAL(5,2),
+    data_processed_mb BIGINT,
+    query_plan_info JSON,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_report_metrics_report FOREIGN KEY (report_definition_id) REFERENCES reports_business_intelligence.report_definitions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_report_metrics_execution FOREIGN KEY (execution_id) REFERENCES reports_business_intelligence.report_executions(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_report_metrics_report ON reports_business_intelligence.report_performance_metrics (report_definition_id);
+CREATE INDEX idx_report_metrics_execution ON reports_business_intelligence.report_performance_metrics (execution_id);
+
+-- TABLA 335: DASHBOARD_PERFORMANCE_METRICS
+-- Métricas de rendimiento para la carga de dashboards.
+CREATE TABLE reports_business_intelligence.dashboard_performance_metrics (
+    id SERIAL PRIMARY KEY,
+    dashboard_definition_id INTEGER NOT NULL,
+    widget_id INTEGER,
+    load_time_ms INTEGER,
+    api_calls_count INTEGER,
+    data_transferred_kb INTEGER,
+    is_cached BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_dashboard_metrics_dashboard FOREIGN KEY (dashboard_definition_id) REFERENCES reports_business_intelligence.dashboard_definitions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dashboard_metrics_widget FOREIGN KEY (widget_id) REFERENCES reports_business_intelligence.dashboard_widgets(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_dash_metrics_dashboard ON reports_business_intelligence.dashboard_performance_metrics (dashboard_definition_id);
+CREATE INDEX idx_dash_metrics_widget ON reports_business_intelligence.dashboard_performance_metrics (widget_id);

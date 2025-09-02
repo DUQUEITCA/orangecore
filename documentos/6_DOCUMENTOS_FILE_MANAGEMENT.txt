@@ -1,0 +1,322 @@
+M�DULO 6: DOCUMENTOS Y FILE MANAGEMENT (11 TABLAS)
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+
+TABLA 232: DOCUMENT_TYPES
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(50)) - Nombre del tipo: 'Contract', 'Invoice', 'Insurance Policy'
+3. category (varchar(30)) - Categor�a: 'Legal', 'Financial', 'Operational', 'HR'
+4. description (text) - Descripci�n del tipo de documento
+5. requires_approval (boolean, DEFAULT FALSE) - Si requiere proceso de aprobaci�n
+6. retention_days (int) - D�as de retenci�n requeridos (compliance)
+7. allowed_file_types (varchar(255)) - Tipos permitidos: 'pdf,docx,jpg,png'
+8. max_file_size_mb (int) - Tama�o m�ximo en MB
+9. is_confidential (boolean, DEFAULT FALSE) - Si es confidencial por defecto
+10. auto_ocr_enabled (boolean, DEFAULT FALSE) - Si se aplica OCR autom�ticamente
+11. is_active (boolean, DEFAULT TRUE) - Estado activo del tipo
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name, category) - Combinaci�n �nica de nombre y categor�a
+Relaciones:
+* Usado por DOCUMENTS para clasificaci�n
+* Define pol�ticas de retention y seguridad
+�ndices Sugeridos:
+* idx_document_types_category
+* idx_document_types_active
+
+TABLA 233: DOCUMENTS
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_type_id (int, FK ? DOCUMENT_TYPES) - Tipo de documento
+3. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+4. related_entity_type (varchar(30)) - Tipo: 'PROJECT', 'CONTACT', 'INSPECTION'
+5. related_entity_id (int) - ID de la entidad relacionada
+6. file_name (varchar(255)) - Nombre original del archivo
+7. file_path (varchar(500)) - Ruta completa en S3
+8. s3_key (varchar(500)) - Key espec�fica en S3
+9. file_size_bytes (bigint) - Tama�o del archivo en bytes
+10. mime_type (varchar(100)) - Tipo MIME del archivo
+11. file_hash (varchar(64)) - Hash SHA-256 para integridad
+12. upload_source (varchar(30)) - Fuente: 'MANUAL', 'EMAIL', 'API', 'MOBILE'
+13. uploaded_by_contact_id (int, FK ? CONTACTS) - Quien subi� el documento
+14. upload_timestamp (timestamp) - Momento de subida
+15. is_confidential (boolean, DEFAULT FALSE) - Si es confidencial
+16. expires_at (timestamp) - Fecha de expiraci�n del acceso
+17. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(s3_key) - Key �nico en S3
+* UNIQUE(file_hash) - Hash �nico para evitar duplicados
+Relaciones:
+* Pertenece a DOCUMENT_TYPES y ORGANIZATIONS
+* Subido por CONTACTS
+* Relacionado con m�ltiples entidades via polymorphic relationship
+�ndices Sugeridos:
+* idx_documents_entity_type_id
+* idx_documents_organization_type
+* idx_documents_uploader_date
+
+TABLA 234: DOCUMENT_FOLDERS
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. parent_folder_id (int, FK ? DOCUMENT_FOLDERS) - Carpeta padre (jerarqu�a)
+4. folder_name (varchar(100)) - Nombre de la carpeta
+5. folder_path (varchar(500)) - Ruta completa de la carpeta
+6. folder_type (varchar(30)) - Tipo: 'PROJECT', 'DEPARTMENT', 'ARCHIVE'
+7. related_entity_type (varchar(30)) - Entidad asociada: 'PROJECT', 'CONTACT'
+8. related_entity_id (int) - ID de la entidad asociada
+9. is_system_folder (boolean, DEFAULT FALSE) - Si es carpeta del sistema
+10. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� la carpeta
+11. is_active (boolean, DEFAULT TRUE) - Estado activo de la carpeta
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, folder_path) - Ruta �nica por organizaci�n
+Relaciones:
+* Pertenece a ORGANIZATIONS
+* Auto-referencia para jerarqu�a de carpetas
+* Creada por CONTACTS
+* Opcional para organizaci�n (no aplica a chats/emails)
+�ndices Sugeridos:
+* idx_document_folders_organization_path
+* idx_document_folders_parent_active
+* idx_document_folders_entity_type_id
+
+TABLA 235: DOCUMENT_FOLDER_ASSIGNMENTS
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_id (int, FK ? DOCUMENTS) - Documento asignado
+3. folder_id (int, FK ? DOCUMENT_FOLDERS) - Carpeta de destino
+4. assigned_by_contact_id (int, FK ? CONTACTS) - Quien hizo la asignaci�n
+5. assignment_reason (varchar(100)) - Raz�n de la asignaci�n
+6. is_primary_location (boolean, DEFAULT TRUE) - Si es ubicaci�n primaria
+7. assigned_at (timestamp, DEFAULT NOW()) - Momento de asignaci�n
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(document_id, folder_id) - Documento �nico por carpeta
+Relaciones:
+* Conecta DOCUMENTS con DOCUMENT_FOLDERS (muchos a muchos)
+* Asignado por CONTACTS
+�ndices Sugeridos:
+* idx_folder_assignments_document_primary
+* idx_folder_assignments_folder_assigned
+
+TABLA 236: DOCUMENT_VERSIONS
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_id (int, FK ? DOCUMENTS) - Documento base
+3. version_number (varchar(10)) - N�mero de versi�n: 'v1.0', 'v1.1', 'v2.0'
+4. version_description (varchar(255)) - Descripci�n de los cambios
+5. file_path (varchar(500)) - Ruta del archivo de esta versi�n
+6. s3_key (varchar(500)) - Key espec�fica en S3 para esta versi�n
+7. file_size_bytes (bigint) - Tama�o del archivo de esta versi�n
+8. file_hash (varchar(64)) - Hash SHA-256 de esta versi�n
+9. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� esta versi�n
+10. is_current_version (boolean, DEFAULT FALSE) - Si es la versi�n actual
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(document_id, version_number) - Versi�n �nica por documento
+* UNIQUE(s3_key) - Key �nico en S3
+Relaciones:
+* Pertenece a DOCUMENTS
+* Creada por CONTACTS
+* Change tracking completo
+�ndices Sugeridos:
+* idx_document_versions_document_current
+* idx_document_versions_creator_date
+
+TABLA 237: DOCUMENT_PERMISSIONS
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_id (int, FK ? DOCUMENTS) - Documento con permisos
+3. grantee_type (varchar(20)) - Tipo: 'USER', 'ROLE', 'ORGANIZATION'
+4. grantee_id (int) - ID del usuario, rol u organizaci�n
+5. permission_level (varchar(20)) - Nivel: 'READ', 'WRITE', 'DELETE', 'ADMIN'
+6. granted_by_contact_id (int, FK ? CONTACTS) - Quien otorg� el permiso
+7. granted_at (timestamp, DEFAULT NOW()) - Cuando se otorg�
+8. expires_at (timestamp) - Fecha de expiraci�n del permiso
+9. is_inherited (boolean, DEFAULT FALSE) - Si es heredado de carpeta
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(document_id, grantee_type, grantee_id) - Permiso �nico por combinaci�n
+Relaciones:
+* Pertenece a DOCUMENTS
+* Otorgado por CONTACTS
+* Control granular de acceso
+�ndices Sugeridos:
+* idx_document_permissions_document_type_id
+* idx_document_permissions_granted_expires
+
+TABLA 238: DOCUMENT_SHARES
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_id (int, FK ? DOCUMENTS) - Documento compartido
+3. shared_by_contact_id (int, FK ? CONTACTS) - Quien comparti�
+4. share_type (varchar(20)) - Tipo: 'PUBLIC_LINK', 'INTERNAL', 'EMAIL'
+5. share_token (varchar(255)) - Token �nico para acceso p�blico
+6. recipient_email (varchar(255)) - Email del destinatario si aplica
+7. access_level (varchar(20)) - Nivel: 'VIEW', 'DOWNLOAD', 'COMMENT'
+8. requires_password (boolean, DEFAULT FALSE) - Si requiere contrase�a
+9. password_hash (varchar(255)) - Hash de contrase�a si aplica
+10. expires_at (timestamp) - Fecha de expiraci�n del share
+11. max_downloads (int) - M�ximo n�mero de descargas permitidas
+12. download_count (int, DEFAULT 0) - Contador de descargas actuales
+13. last_accessed_at (timestamp) - �ltimo acceso registrado
+14. is_active (boolean, DEFAULT TRUE) - Estado activo del share
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(share_token) - Token �nico para enlaces p�blicos
+Relaciones:
+* Pertenece a DOCUMENTS
+* Creado por CONTACTS
+* Public links e internal shares con expiration
+�ndices Sugeridos:
+* idx_document_shares_token
+* idx_document_shares_document_active
+* idx_document_shares_expires
+
+TABLA 239: DOCUMENT_REVIEWS
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_id (int, FK ? DOCUMENTS) - Documento bajo revisi�n
+3. reviewer_contact_id (int, FK ? CONTACTS) - Revisor asignado
+4. review_type (varchar(30)) - Tipo: 'APPROVAL', 'COMPLIANCE', 'QUALITY'
+5. review_status (varchar(20)) - Estado: 'Pending', 'In Review', 'Approved', 'Rejected'
+6. priority_level (varchar(20)) - Prioridad: 'Low', 'Medium', 'High', 'Critical'
+7. due_date (date) - Fecha l�mite para revisi�n
+8. review_comments (text) - Comentarios de la revisi�n
+9. approved_at (timestamp) - Fecha de aprobaci�n
+10. rejected_at (timestamp) - Fecha de rechazo
+11. rejection_reason (text) - Raz�n del rechazo
+12. assigned_by_contact_id (int, FK ? CONTACTS) - Quien asign� la revisi�n
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a DOCUMENTS
+* Asignada y realizada por CONTACTS
+* Approval workflow para compliance
+�ndices Sugeridos:
+* idx_document_reviews_document_status
+* idx_document_reviews_reviewer_due
+* idx_document_reviews_priority
+
+TABLA 240: DOCUMENT_TAGS
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_id (int, FK ? DOCUMENTS) - Documento etiquetado
+3. tag_name (varchar(50)) - Nombre del tag: 'Contract', 'Invoice', 'Insurance'
+4. tag_category (varchar(30)) - Categor�a: 'Status', 'Priority', 'Department'
+5. tag_color (varchar(7)) - Color en formato hex: '#FF0000'
+6. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� el tag
+7. is_system_tag (boolean, DEFAULT FALSE) - Si es tag del sistema
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(document_id, tag_name) - Tag �nico por documento
+Relaciones:
+* Pertenece a DOCUMENTS
+* Creado por CONTACTS
+* B�squeda avanzada y categorizaci�n
+�ndices Sugeridos:
+* idx_document_tags_document_category
+* idx_document_tags_name_system
+
+TABLA 241: DOCUMENT_OCR_RESULTS
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_id (int, FK ? DOCUMENTS) - Documento procesado
+3. ocr_provider (varchar(30)) - Proveedor: 'AWS_TEXTRACT', 'GOOGLE_VISION', 'AZURE'
+4. extracted_text (text) - Texto extra�do completo
+5. confidence_score (decimal(5,2)) - Score de confianza promedio
+6. processing_status (varchar(20)) - Estado: 'Processing', 'Completed', 'Failed'
+7. structured_data (json) - Datos estructurados extra�dos (fechas, amounts, etc.)
+8. key_value_pairs (json) - Pares clave-valor identificados
+9. processing_time_ms (int) - Tiempo de procesamiento en millisegundos
+10. error_message (text) - Mensaje de error si fall�
+11. processed_at (timestamp) - Fecha de procesamiento
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(document_id, ocr_provider) - Resultado �nico por proveedor
+Relaciones:
+* Pertenece a DOCUMENTS
+* Resultados de AI/ML processing
+* B�squeda por contenido
+�ndices Sugeridos:
+* idx_document_ocr_document_status
+* idx_document_ocr_provider_processed
+
+TABLA 242: DOCUMENT_ACCESS_LOG
+M�dulo: DOCUMENTOS Y FILE MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. document_id (int, FK ? DOCUMENTS) - Documento accedido
+3. accessed_by_contact_id (int, FK ? CONTACTS) - Quien accedi�
+4. access_type (varchar(20)) - Tipo: 'VIEW', 'DOWNLOAD', 'EDIT', 'DELETE'
+5. access_method (varchar(30)) - M�todo: 'WEB', 'API', 'MOBILE', 'PUBLIC_LINK'
+6. ip_address (varchar(45)) - Direcci�n IP del acceso
+7. user_agent (varchar(500)) - User agent del navegador
+8. session_id (varchar(255)) - ID de sesi�n
+9. share_token (varchar(255)) - Token si fue via public link
+10. access_granted (boolean, DEFAULT TRUE) - Si el acceso fue otorgado
+11. denial_reason (varchar(255)) - Raz�n de denegaci�n si aplica
+12. accessed_at (timestamp, DEFAULT NOW()) - Momento del acceso
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a DOCUMENTS
+* Accedido por CONTACTS
+* Audit trail completo para compliance
+�ndices Sugeridos:
+* idx_document_access_log_document_accessed
+* idx_document_access_log_contact_type
+* idx_document_access_log_ip_date
+
+Este m�dulo de DOCUMENTOS Y FILE MANAGEMENT est� dise�ado para:
+Caracter�sticas Enterprise:
+* Clasificaci�n por contexto y fuente con DOCUMENT_TYPES
+* Folder system opcional (no aplica a chats/emails autom�ticos)
+* Status workflow con DOCUMENT_REVIEWS (Pending Review ? Approved)
+* Permissions granulares por usuario, rol y organizaci�n
+* Versioning completo con change tracking
+* Public/Internal sharing con expiration y password protection
+* OCR autom�tico para extracci�n de texto e informaci�n estructurada
+* Tags para b�squeda avanzada y categorizaci�n
+* Audit trail completo para compliance y seguridad
+Casos de uso cr�ticos para construction:
+* Employee docs: Contracts, certifications, safety training
+* Project docs: Insurance policies, permits, change orders
+* Financial docs: Invoices, receipts, bank statements
+* Compliance docs: Safety reports, inspection certificates
+* Legal docs: Contracts, liability waivers, insurance claims
+Integration con otros m�dulos:
+* HR Module: Employee documents con approval workflow
+* Financial Module: Expense receipts con OCR para auto-categorization
+* Inspections Module: Completion certificates y photos
+* Projects Module: Project folders autom�ticos
+* Emails Module: Email attachments autom�ticamente categorizados
+Security features:
+* File integrity con SHA-256 hashing
+* Granular permissions con expiration
+* Audit logging completo
+* Confidential document handling
+* Secure public links con password protection 	

@@ -1,0 +1,245 @@
+Como experto en PostgreSQL, aquí tiene la definición completa de los esquemas, tablas y dependencias para el módulo de **DOCUMENTOS Y FILE MANAGEMENT**, basado en la información proporcionada.
+
+El script ha sido diseñado para crear todas las entidades en el orden de dependencias correcto, asegurando que las llaves foráneas (`FOREIGN KEYS`) se configuren sin errores. Este DDL asume que los esquemas `base_foundation` ya existen.
+
+-----
+
+### 1\. Creación del Esquema `DOCUMENTOS_FILE_MANAGEMENT`
+
+El primer paso es crear el esquema que albergará todas las tablas de este módulo y establecerlo como el camino de búsqueda.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS documentos_file_management;
+SET search_path TO documentos_file_management;
+```
+
+-----
+
+### 2\. Definición de Tablas del Módulo
+
+Las tablas se han ordenado para resolver las dependencias de manera progresiva. Las tablas con dependencias externas se crean primero, seguidas de las que dependen de las tablas recién creadas.
+
+#### Tablas con Dependencias Externas o Sin Dependencias Internas
+
+```sql
+-- TABLA 232: DOCUMENT_TYPES
+CREATE TABLE documentos_file_management.document_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    category VARCHAR(30) NOT NULL,
+    description TEXT,
+    requires_approval BOOLEAN DEFAULT FALSE,
+    retention_days INTEGER,
+    allowed_file_types VARCHAR(255),
+    max_file_size_mb INTEGER,
+    is_confidential BOOLEAN DEFAULT FALSE,
+    auto_ocr_enabled BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(name, category)
+);
+
+-- TABLA 234: DOCUMENT_FOLDERS
+CREATE TABLE documentos_file_management.document_folders (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    parent_folder_id INTEGER,
+    folder_name VARCHAR(100) NOT NULL,
+    folder_path VARCHAR(500) NOT NULL,
+    folder_type VARCHAR(30),
+    related_entity_type VARCHAR(30),
+    related_entity_id INTEGER,
+    is_system_folder BOOLEAN DEFAULT FALSE,
+    created_by_contact_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, folder_path),
+    CONSTRAINT fk_document_folders_organization FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_document_folders_parent FOREIGN KEY (parent_folder_id) REFERENCES documentos_file_management.document_folders(id),
+    CONSTRAINT fk_document_folders_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA 233: DOCUMENTS
+CREATE TABLE documentos_file_management.documents (
+    id SERIAL PRIMARY KEY,
+    document_type_id INTEGER NOT NULL,
+    organization_id INTEGER NOT NULL,
+    related_entity_type VARCHAR(30),
+    related_entity_id INTEGER,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    s3_key VARCHAR(500) NOT NULL,
+    file_size_bytes BIGINT,
+    mime_type VARCHAR(100),
+    file_hash VARCHAR(64),
+    upload_source VARCHAR(30),
+    uploaded_by_contact_id INTEGER NOT NULL,
+    upload_timestamp TIMESTAMP NOT NULL,
+    is_confidential BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(s3_key),
+    UNIQUE(file_hash),
+    CONSTRAINT fk_documents_type FOREIGN KEY (document_type_id) REFERENCES documentos_file_management.document_types(id),
+    CONSTRAINT fk_documents_organization FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_documents_uploader FOREIGN KEY (uploaded_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+```
+
+#### Tablas con Dependencias en el Módulo
+
+```sql
+-- TABLA 235: DOCUMENT_FOLDER_ASSIGNMENTS
+CREATE TABLE documentos_file_management.document_folder_assignments (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER NOT NULL,
+    folder_id INTEGER NOT NULL,
+    assigned_by_contact_id INTEGER,
+    assignment_reason VARCHAR(100),
+    is_primary_location BOOLEAN DEFAULT TRUE,
+    assigned_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(document_id, folder_id),
+    CONSTRAINT fk_folder_assignments_document FOREIGN KEY (document_id) REFERENCES documentos_file_management.documents(id),
+    CONSTRAINT fk_folder_assignments_folder FOREIGN KEY (folder_id) REFERENCES documentos_file_management.document_folders(id),
+    CONSTRAINT fk_folder_assignments_assigner FOREIGN KEY (assigned_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA 236: DOCUMENT_VERSIONS
+CREATE TABLE documentos_file_management.document_versions (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER NOT NULL,
+    version_number VARCHAR(10) NOT NULL,
+    version_description VARCHAR(255),
+    file_path VARCHAR(500) NOT NULL,
+    s3_key VARCHAR(500) NOT NULL,
+    file_size_bytes BIGINT,
+    file_hash VARCHAR(64),
+    created_by_contact_id INTEGER NOT NULL,
+    is_current_version BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(document_id, version_number),
+    UNIQUE(s3_key),
+    CONSTRAINT fk_document_versions_document FOREIGN KEY (document_id) REFERENCES documentos_file_management.documents(id),
+    CONSTRAINT fk_document_versions_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA 237: DOCUMENT_PERMISSIONS
+CREATE TABLE documentos_file_management.document_permissions (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER NOT NULL,
+    grantee_type VARCHAR(20) NOT NULL,
+    grantee_id INTEGER NOT NULL,
+    permission_level VARCHAR(20) NOT NULL,
+    granted_by_contact_id INTEGER,
+    granted_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP,
+    is_inherited BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(document_id, grantee_type, grantee_id),
+    CONSTRAINT fk_document_permissions_document FOREIGN KEY (document_id) REFERENCES documentos_file_management.documents(id),
+    CONSTRAINT fk_document_permissions_granter FOREIGN KEY (granted_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA 238: DOCUMENT_SHARES
+CREATE TABLE documentos_file_management.document_shares (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER NOT NULL,
+    shared_by_contact_id INTEGER,
+    share_type VARCHAR(20) NOT NULL,
+    share_token VARCHAR(255) UNIQUE NOT NULL,
+    recipient_email VARCHAR(255),
+    access_level VARCHAR(20),
+    requires_password BOOLEAN DEFAULT FALSE,
+    password_hash VARCHAR(255),
+    expires_at TIMESTAMP,
+    max_downloads INTEGER,
+    download_count INTEGER DEFAULT 0,
+    last_accessed_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_document_shares_document FOREIGN KEY (document_id) REFERENCES documentos_file_management.documents(id),
+    CONSTRAINT fk_document_shares_sharer FOREIGN KEY (shared_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA 239: DOCUMENT_REVIEWS
+CREATE TABLE documentos_file_management.document_reviews (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER NOT NULL,
+    reviewer_contact_id INTEGER,
+    review_type VARCHAR(30) NOT NULL,
+    review_status VARCHAR(20) DEFAULT 'Pending',
+    priority_level VARCHAR(20) DEFAULT 'Medium',
+    due_date DATE,
+    review_comments TEXT,
+    approved_at TIMESTAMP,
+    rejected_at TIMESTAMP,
+    rejection_reason TEXT,
+    assigned_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_document_reviews_document FOREIGN KEY (document_id) REFERENCES documentos_file_management.documents(id),
+    CONSTRAINT fk_document_reviews_reviewer FOREIGN KEY (reviewer_contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_document_reviews_assigner FOREIGN KEY (assigned_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA 240: DOCUMENT_TAGS
+CREATE TABLE documentos_file_management.document_tags (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER NOT NULL,
+    tag_name VARCHAR(50) NOT NULL,
+    tag_category VARCHAR(30),
+    tag_color VARCHAR(7),
+    created_by_contact_id INTEGER,
+    is_system_tag BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(document_id, tag_name),
+    CONSTRAINT fk_document_tags_document FOREIGN KEY (document_id) REFERENCES documentos_file_management.documents(id),
+    CONSTRAINT fk_document_tags_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA 241: DOCUMENT_OCR_RESULTS
+CREATE TABLE documentos_file_management.document_ocr_results (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER UNIQUE NOT NULL,
+    ocr_provider VARCHAR(30) NOT NULL,
+    extracted_text TEXT,
+    confidence_score DECIMAL(5,2),
+    processing_status VARCHAR(20) NOT NULL DEFAULT 'Processing',
+    structured_data JSON,
+    key_value_pairs JSON,
+    processing_time_ms INTEGER,
+    error_message TEXT,
+    processed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_document_ocr_results_document FOREIGN KEY (document_id) REFERENCES documentos_file_management.documents(id)
+);
+
+-- TABLA 242: DOCUMENT_ACCESS_LOG
+CREATE TABLE documentos_file_management.document_access_log (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER NOT NULL,
+    accessed_by_contact_id INTEGER,
+    access_type VARCHAR(20) NOT NULL,
+    access_method VARCHAR(30),
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(500),
+    session_id VARCHAR(255),
+    share_token VARCHAR(255),
+    access_granted BOOLEAN DEFAULT TRUE,
+    denial_reason VARCHAR(255),
+    accessed_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_document_access_log_document FOREIGN KEY (document_id) REFERENCES documentos_file_management.documents(id),
+    CONSTRAINT fk_document_access_log_contact FOREIGN KEY (accessed_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+```

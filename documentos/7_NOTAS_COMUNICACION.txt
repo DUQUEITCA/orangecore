@@ -1,0 +1,141 @@
+M�DULO 7: NOTAS Y COMUNICACI�N (6 TABLAS)
+Inventario Completo: Tabla por Tabla
+
+TABLA 243: NOTES
+M�dulo: NOTAS Y COMUNICACI�N
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. parent_note_id (int, FK ? NOTES) - Self-reference para threading (NULL = nota principal)
+3. note_type (varchar(30)) - Tipo de nota: 'GENERAL', 'WORK', 'PROPERTY', 'ESTIMATE'
+4. context_id (int) - ID del registro espec�fico al que se refiere la nota
+5. context_table (varchar(50)) - Tabla del contexto: 'contacts', 'projects', 'customer_jobs'
+6. note_content (text) - Contenido principal de la nota
+7. created_by_contact_id (int, FK ? CONTACTS) - Empleado que cre� la nota
+8. is_private (boolean, DEFAULT FALSE) - Nota privada solo visible para el creador
+9. has_replies (boolean, DEFAULT FALSE) - Optimizaci�n para queries de threading
+10. signalr_group_id (varchar(100)) - Grupo SignalR para real-time: "project_123", "job_456"
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna �nica cr�tica (permite m�ltiples notas por contexto)
+Relaciones:
+* Self-reference con NOTES (parent_note_id)
+* Many-to-one con CONTACTS (created_by_contact_id)
+* Polymorphic relationship via context_id + context_table
+�ndices Sugeridos:
+* idx_notes_context (context_table, context_id)
+* idx_notes_threading (parent_note_id, created_at)
+* idx_notes_signalr (signalr_group_id)
+
+TABLA 244: NOTE_MENTIONS
+M�dulo: NOTAS Y COMUNICACI�N
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. note_id (int, FK ? NOTES) - Nota que contiene la menci�n
+3. mentioned_contact_id (int, FK ? CONTACTS) - Empleado mencionado con @
+4. mention_type (varchar(20)) - Tipo de menci�n: '@USER', '@TEAM', '@ROLE'
+5. notification_sent (boolean, DEFAULT FALSE) - Si se envi� notificaci�n
+6. notification_read (boolean, DEFAULT FALSE) - Si el usuario ley� la notificaci�n
+7. signalr_user_id (varchar(50)) - Contact ID para targeting real-time espec�fico
+8. created_at (timestamp, DEFAULT NOW()) - Timestamp de la menci�n
+Restricciones �nicas:
+* UNIQUE(note_id, mentioned_contact_id) - Una menci�n por usuario por nota
+Relaciones:
+* Many-to-one con NOTES (note_id)
+* Many-to-one con CONTACTS (mentioned_contact_id)
+�ndices Sugeridos:
+* idx_mentions_user (mentioned_contact_id, notification_read)
+* idx_mentions_signalr (signalr_user_id)
+
+TABLA 245: NOTE_TAGS
+M�dulo: NOTAS Y COMUNICACI�N
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. tag_name (varchar(30)) - Nombre del tag: 'urgent', 'follow-up', 'completed'
+3. color (varchar(7)) - Color hex para UI: '#FF5733', '#33FF57'
+4. notification_level (varchar(20)) - Nivel de notificaci�n: 'NONE', 'EMAIL', 'PUSH'
+5. is_active (boolean, DEFAULT TRUE) - Tag activo/inactivo
+6. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+7. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(tag_name) - Nombres de tags �nicos globalmente
+Relaciones:
+* One-to-many con NOTE_TAG_ASSIGNMENTS
+�ndices Sugeridos:
+* idx_tags_active (is_active, tag_name)
+
+TABLA 246: NOTE_TAG_ASSIGNMENTS
+M�dulo: NOTAS Y COMUNICACI�N
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. note_id (int, FK ? NOTES) - Nota que recibe el tag
+3. note_tag_id (int, FK ? NOTE_TAGS) - Tag asignado
+4. created_at (timestamp, DEFAULT NOW()) - Timestamp de asignaci�n
+Restricciones �nicas:
+* UNIQUE(note_id, note_tag_id) - Un tag por nota m�ximo
+Relaciones:
+* Many-to-one con NOTES (note_id)
+* Many-to-one con NOTE_TAGS (note_tag_id)
+�ndices Sugeridos:
+* idx_tag_assignments_note (note_id)
+* idx_tag_assignments_tag (note_tag_id)
+
+TABLA 247: NOTE_ATTACHMENTS
+M�dulo: NOTAS Y COMUNICACI�N
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. note_id (int, FK ? NOTES) - Nota que contiene el adjunto
+3. document_id (int, FK ? DOCUMENTS) - Documento adjunto (reusa m�dulo documentos)
+4. attached_at (timestamp, DEFAULT NOW()) - Timestamp de adjunto
+Restricciones �nicas:
+* UNIQUE(note_id, document_id) - Un documento por nota m�ximo
+Relaciones:
+* Many-to-one con NOTES (note_id)
+* Many-to-one con DOCUMENTS (document_id) [M�dulo 6]
+�ndices Sugeridos:
+* idx_attachments_note (note_id)
+* idx_attachments_document (document_id)
+
+TABLA 248: NOTE_NOTIFICATIONS
+M�dulo: NOTAS Y COMUNICACI�N
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. note_id (int, FK ? NOTES) - Nota que genera la notificaci�n
+3. recipient_contact_id (int, FK ? CONTACTS) - Usuario que recibe la notificaci�n
+4. notification_type (varchar(20)) - Tipo: 'MENTION', 'TAG', 'REPLY', 'NEW_NOTE'
+5. is_read (boolean, DEFAULT FALSE) - Estado de lectura de notificaci�n
+6. signalr_connection_id (varchar(100)) - ID de conexi�n SignalR para targeting espec�fico
+7. sent_at (timestamp) - Timestamp de env�o de notificaci�n
+8. read_at (timestamp) - Timestamp de lectura de notificaci�n
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna �nica cr�tica (permite m�ltiples notificaciones por nota)
+Relaciones:
+* Many-to-one con NOTES (note_id)
+* Many-to-one con CONTACTS (recipient_contact_id)
+�ndices Sugeridos:
+* idx_notifications_recipient (recipient_contact_id, is_read)
+* idx_notifications_signalr (signalr_connection_id)
+* idx_notifications_unread (is_read, created_at)
+
+CONTEXTO BUSINESS PARA CONSTRUCTION:
+Threading Inteligente:
+* Notas principales por estimado/proyecto con respuestas anidadas
+* Context-aware por tab espec�fico (Customer Info, Project Details, etc.)
+@Mentions Empresariales:
+* @TechnicianName para asignaci�n de tareas desde notas
+* @ProjectManager para escalaci�n autom�tica
+* @Team notifications para todo el crew
+Tags con Business Logic:
+* 'urgent' ? Email + Push notifications autom�ticas
+* 'follow-up' ? Task creation autom�tica en 3 d�as
+* 'completed' ? Status update en proyecto
+Real-time Collaboration:
+* SignalR groups por project/job para live updates
+* Typing indicators en notas colaborativas
+* Instant notifications para customer-facing decisions
+Integraci�n con M�dulos:
+* Documents: Adjuntar photos de inspection, signed contracts
+* Tasks: Crear tasks directamente desde note content
+* Workflows: Trigger sequences basado en note tags
+* Projects: Context switching seamless entre customers

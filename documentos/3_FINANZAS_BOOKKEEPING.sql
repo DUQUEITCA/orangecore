@@ -1,0 +1,344 @@
+-- TODO O NADA
+BEGIN;
+
+CREATE SCHEMA IF NOT EXISTS finanzas_bookkeeping;
+SET search_path TO finanzas_bookkeeping;
+
+-- TABLA: IRS_CATEGORIES
+CREATE TABLE finanzas_bookkeeping.irs_categories (
+    id SERIAL PRIMARY KEY,
+    category_code VARCHAR(20) UNIQUE NOT NULL,
+    category_name VARCHAR(100),
+    irs_form_line VARCHAR(50),
+    description TEXT,
+    is_deductible BOOLEAN DEFAULT TRUE,
+    requires_documentation BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- TABLA: WALLET_TYPES
+CREATE TABLE finanzas_bookkeeping.wallet_types (
+    id SERIAL PRIMARY KEY,
+    type_name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    default_rules JSON,
+    icon_name VARCHAR(50),
+    is_system_type BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- TABLA: CASH_ACCOUNTS
+CREATE TABLE finanzas_bookkeeping.cash_accounts (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    account_name VARCHAR(100) NOT NULL,
+    current_balance DECIMAL(10, 2),
+    location VARCHAR(100),
+    responsible_contact_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, account_name),
+    CONSTRAINT fk_cash_accounts_organization FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_cash_accounts_contact FOREIGN KEY (responsible_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+
+-- TABLA: BANK_ACCOUNTS
+CREATE TABLE finanzas_bookkeeping.bank_accounts (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    account_name VARCHAR(100) NOT NULL,
+    account_type VARCHAR(30),
+    bank_name VARCHAR(100),
+    account_number VARCHAR(50),
+    routing_number VARCHAR(20),
+    plaid_account_id VARCHAR(100) UNIQUE,
+    plaid_access_token VARCHAR(255),
+    current_balance DECIMAL(12, 2),
+    available_balance DECIMAL(12, 2),
+    last_sync_date TIMESTAMP,
+    auto_sync_enabled BOOLEAN DEFAULT TRUE,
+    is_primary BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, account_number),
+    CONSTRAINT fk_bank_accounts_organization FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id)
+);
+
+-- TABLA: TRANSACTION_CATEGORIES
+CREATE TABLE finanzas_bookkeeping.transaction_categories (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    category_name VARCHAR(100) NOT NULL,
+    parent_category_id INTEGER,
+    irs_category_id INTEGER,
+    icon_name VARCHAR(50),
+    color VARCHAR(7),
+    is_expense BOOLEAN DEFAULT TRUE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, category_name),
+    CONSTRAINT fk_transaction_categories_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_transaction_categories_parent FOREIGN KEY (parent_category_id) REFERENCES finanzas_bookkeeping.transaction_categories(id),
+    CONSTRAINT fk_transaction_categories_irs FOREIGN KEY (irs_category_id) REFERENCES finanzas_bookkeeping.irs_categories(id)
+);
+
+-- TABLA: VIRTUAL_WALLETS
+CREATE TABLE finanzas_bookkeeping.virtual_wallets (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    wallet_type_id INTEGER,
+    wallet_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    current_balance DECIMAL(12, 2),
+    allocated_budget DECIMAL(12, 2),
+    responsible_contact_id INTEGER,
+    project_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    auto_allocate_rules JSON,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, wallet_name),
+    CONSTRAINT fk_wallets_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_wallets_type FOREIGN KEY (wallet_type_id) REFERENCES finanzas_bookkeeping.wallet_types(id),
+    CONSTRAINT fk_wallets_contact FOREIGN KEY (responsible_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: BANK_TRANSACTIONS
+CREATE TABLE finanzas_bookkeeping.bank_transactions (
+    id SERIAL PRIMARY KEY,
+    bank_account_id INTEGER NOT NULL,
+    plaid_transaction_id VARCHAR(100) UNIQUE NOT NULL,
+    transaction_date DATE,
+    post_date DATE,
+    amount DECIMAL(12, 2),
+    description VARCHAR(300),
+    merchant_name VARCHAR(100),
+    category_primary VARCHAR(50),
+    category_detailed VARCHAR(100),
+    account_owner VARCHAR(100),
+    pending BOOLEAN DEFAULT FALSE,
+    check_number VARCHAR(20),
+    irs_category_id INTEGER,
+    ai_categorized BOOLEAN DEFAULT FALSE,
+    categorization_confidence DECIMAL(5, 2),
+    wallet_id INTEGER,
+    project_id INTEGER,
+    reconciled BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(bank_account_id, check_number) WHERE check_number IS NOT NULL,
+    CONSTRAINT fk_bank_transactions_account FOREIGN KEY (bank_account_id) REFERENCES finanzas_bookkeeping.bank_accounts(id),
+    CONSTRAINT fk_bank_transactions_irs_cat FOREIGN KEY (irs_category_id) REFERENCES finanzas_bookkeeping.irs_categories(id),
+    CONSTRAINT fk_bank_transactions_wallet FOREIGN KEY (wallet_id) REFERENCES finanzas_bookkeeping.virtual_wallets(id)
+);
+
+-- TABLA: TRANSACTION_SPLITS
+CREATE TABLE finanzas_bookkeeping.transaction_splits (
+    id SERIAL PRIMARY KEY,
+    parent_transaction_id INTEGER NOT NULL,
+    split_amount DECIMAL(12, 2) NOT NULL,
+    split_description VARCHAR(300),
+    irs_category_id INTEGER,
+    assigned_to_contact_id INTEGER,
+    assigned_to_project_id INTEGER,
+    wallet_id INTEGER,
+    split_percentage DECIMAL(5, 2),
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_transaction_splits_parent FOREIGN KEY (parent_transaction_id) REFERENCES finanzas_bookkeeping.bank_transactions(id),
+    CONSTRAINT fk_transaction_splits_irs_cat FOREIGN KEY (irs_category_id) REFERENCES finanzas_bookkeeping.irs_categories(id),
+    CONSTRAINT fk_transaction_splits_contact FOREIGN KEY (assigned_to_contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_transaction_splits_wallet FOREIGN KEY (wallet_id) REFERENCES finanzas_bookkeeping.virtual_wallets(id),
+    CONSTRAINT fk_transaction_splits_created_by FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: UNCATEGORIZED_TRANSACTIONS
+CREATE TABLE finanzas_bookkeeping.uncategorized_transactions (
+    id SERIAL PRIMARY KEY,
+    bank_transaction_id INTEGER UNIQUE NOT NULL,
+    suggested_category_id INTEGER,
+    confidence_score DECIMAL(5, 2),
+    requires_attention BOOLEAN DEFAULT TRUE,
+    reviewed_by_contact_id INTEGER,
+    reviewed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_uncategorized_tx_bank FOREIGN KEY (bank_transaction_id) REFERENCES finanzas_bookkeeping.bank_transactions(id),
+    CONSTRAINT fk_uncategorized_tx_suggested FOREIGN KEY (suggested_category_id) REFERENCES finanzas_bookkeeping.irs_categories(id),
+    CONSTRAINT fk_uncategorized_tx_reviewed_by FOREIGN KEY (reviewed_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: AI_CATEGORIZATION_LOG
+CREATE TABLE finanzas_bookkeeping.ai_categorization_log (
+    id SERIAL PRIMARY KEY,
+    bank_transaction_id INTEGER,
+    ai_model_version VARCHAR(50),
+    prediction_confidence DECIMAL(5, 2),
+    predicted_category_id INTEGER,
+    actual_category_id INTEGER,
+    prediction_correct BOOLEAN,
+    features_used JSON,
+    processing_time_ms INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_ai_log_bank_tx FOREIGN KEY (bank_transaction_id) REFERENCES finanzas_bookkeeping.bank_transactions(id),
+    CONSTRAINT fk_ai_log_predicted_cat FOREIGN KEY (predicted_category_id) REFERENCES finanzas_bookkeeping.irs_categories(id),
+    CONSTRAINT fk_ai_log_actual_cat FOREIGN KEY (actual_category_id) REFERENCES finanzas_bookkeeping.irs_categories(id)
+);
+
+-- TABLA: WALLET_BALANCES
+CREATE TABLE finanzas_bookkeeping.wallet_balances (
+    id SERIAL PRIMARY KEY,
+    wallet_id INTEGER NOT NULL,
+    balance_date DATE NOT NULL,
+    opening_balance DECIMAL(12, 2),
+    total_debits DECIMAL(12, 2),
+    total_credits DECIMAL(12, 2),
+    closing_balance DECIMAL(12, 2),
+    transaction_count INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(wallet_id, balance_date),
+    CONSTRAINT fk_wallet_balances_wallet FOREIGN KEY (wallet_id) REFERENCES finanzas_bookkeeping.virtual_wallets(id)
+);
+
+-- TABLA: WALLET_TRANSACTIONS
+CREATE TABLE finanzas_bookkeeping.wallet_transactions (
+    id SERIAL PRIMARY KEY,
+    wallet_id INTEGER NOT NULL,
+    bank_transaction_id INTEGER,
+    amount DECIMAL(12, 2),
+    transaction_type VARCHAR(20),
+    description VARCHAR(300),
+    reference_type VARCHAR(30),
+    reference_id INTEGER,
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_wallet_transactions_wallet FOREIGN KEY (wallet_id) REFERENCES finanzas_bookkeeping.virtual_wallets(id),
+    CONSTRAINT fk_wallet_transactions_bank_tx FOREIGN KEY (bank_transaction_id) REFERENCES finanzas_bookkeeping.bank_transactions(id),
+    CONSTRAINT fk_wallet_transactions_contact FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: CHECK_REGISTER
+CREATE TABLE finanzas_bookkeeping.check_register (
+    id SERIAL PRIMARY KEY,
+    bank_account_id INTEGER NOT NULL,
+    check_number VARCHAR(20),
+    payee_name VARCHAR(100),
+    payee_contact_id INTEGER,
+    amount DECIMAL(10, 2),
+    memo VARCHAR(200),
+    issue_date DATE,
+    cleared_date DATE,
+    status VARCHAR(20),
+    wallet_id INTEGER,
+    related_invoice_id INTEGER,
+    issued_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(bank_account_id, check_number),
+    CONSTRAINT fk_check_register_bank_account FOREIGN KEY (bank_account_id) REFERENCES finanzas_bookkeeping.bank_accounts(id),
+    CONSTRAINT fk_check_register_payee FOREIGN KEY (payee_contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_check_register_wallet FOREIGN KEY (wallet_id) REFERENCES finanzas_bookkeeping.virtual_wallets(id),
+    CONSTRAINT fk_check_register_issued_by FOREIGN KEY (issued_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: INVOICE_PAYMENTS
+CREATE TABLE finanzas_bookkeeping.invoice_payments (
+    id SERIAL PRIMARY KEY,
+    invoice_id INTEGER,
+    payment_amount DECIMAL(12, 2),
+    payment_date DATE,
+    payment_method VARCHAR(30),
+    payment_reference VARCHAR(100),
+    bank_account_id INTEGER,
+    processed_payment_id INTEGER,
+    payment_processor_fee DECIMAL(8, 2),
+    net_payment_amount DECIMAL(12, 2),
+    notes TEXT,
+    processed_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_invoice_payments_bank_account FOREIGN KEY (bank_account_id) REFERENCES finanzas_bookkeeping.bank_accounts(id),
+    CONSTRAINT fk_invoice_payments_contact FOREIGN KEY (processed_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: PAYMENT_ALLOCATIONS
+CREATE TABLE finanzas_bookkeeping.payment_allocations (
+    id SERIAL PRIMARY KEY,
+    invoice_payment_id INTEGER NOT NULL,
+    bank_transaction_id INTEGER,
+    allocated_amount DECIMAL(12, 2) NOT NULL,
+    allocation_notes TEXT,
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_payment_allocations_payment FOREIGN KEY (invoice_payment_id) REFERENCES finanzas_bookkeeping.invoice_payments(id),
+    CONSTRAINT fk_payment_allocations_bank_tx FOREIGN KEY (bank_transaction_id) REFERENCES finanzas_bookkeeping.bank_transactions(id),
+    CONSTRAINT fk_payment_allocations_contact FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: PAYMENT_REVERSALS
+CREATE TABLE finanzas_bookkeeping.payment_reversals (
+    id SERIAL PRIMARY KEY,
+    original_payment_id INTEGER NOT NULL,
+    reversal_amount DECIMAL(12, 2),
+    reversal_date DATE,
+    reversal_reason VARCHAR(100),
+    reversal_transaction_id INTEGER,
+    notes TEXT,
+    processed_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_payment_reversals_payment FOREIGN KEY (original_payment_id) REFERENCES finanzas_bookkeeping.invoice_payments(id),
+    CONSTRAINT fk_payment_reversals_bank_tx FOREIGN KEY (reversal_transaction_id) REFERENCES finanzas_bookkeeping.bank_transactions(id),
+    CONSTRAINT fk_payment_reversals_contact FOREIGN KEY (processed_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: COMMISSION_CALCULATIONS
+CREATE TABLE finanzas_bookkeeping.commission_calculations (
+    id SERIAL PRIMARY KEY,
+    invoice_id INTEGER,
+    salesperson_contact_id INTEGER,
+    commission_percentage DECIMAL(5, 2),
+    commission_amount DECIMAL(10, 2),
+    calculation_base DECIMAL(12, 2),
+    payment_status VARCHAR(20),
+    wallet_id INTEGER,
+    paid_via_check_id INTEGER,
+    calculated_at TIMESTAMP,
+    paid_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(invoice_id, salesperson_contact_id),
+    CONSTRAINT fk_commission_calc_contact FOREIGN KEY (salesperson_contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_commission_calc_wallet FOREIGN KEY (wallet_id) REFERENCES finanzas_bookkeeping.virtual_wallets(id),
+    CONSTRAINT fk_commission_calc_check FOREIGN KEY (paid_via_check_id) REFERENCES finanzas_bookkeeping.check_register(id)
+);
+
+-- TABLA: BANK_STATEMENTS
+CREATE TABLE finanzas_bookkeeping.bank_statements (
+    id SERIAL PRIMARY KEY,
+    bank_account_id INTEGER NOT NULL,
+    statement_month INTEGER,
+    statement_year INTEGER,
+    statement_start_date DATE,
+    statement_end_date DATE,
+    opening_balance DECIMAL(12, 2),
+    closing_balance DECIMAL(12, 2),
+    is_reconciled BOOLEAN DEFAULT FALSE,
+    reconciled_by_contact_id INTEGER,
+    reconciled_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(bank_account_id, statement_month, statement_year),
+    CONSTRAINT fk_bank_statements_account FOREIGN KEY (bank_account_id) REFERENCES finanzas_bookkeeping.bank_accounts(id),
+    CONSTRAINT fk_bank_statements_contact FOREIGN KEY (reconciled_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+COMMIT;
+

@@ -1,1 +1,1 @@
-"C:\Program Files\PostgreSQL\17\bin\pg_dump"  -U postgres -W -h localhost orangecore_db > "backups_db\orangecore_db_20250827.sql"
+"C:\Program Files\PostgreSQL\17\bin\pg_dump"  -U postgres -W -h localhost orangecore_db > "backups_db\orangecore_db_20250901.sql"

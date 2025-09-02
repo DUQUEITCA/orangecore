@@ -1,0 +1,543 @@
+TABLA 263: EMAIL_PROVIDERS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. provider_name (varchar(50)) - Nombre del proveedor de email
+3. provider_type (varchar(20)) - Tipo de proveedor: GMAIL, OUTLOOK, IMAP, EXCHANGE
+4. api_endpoint (varchar(255)) - URL del API endpoint para integraci�n
+5. authentication_type (varchar(20)) - Tipo de autenticaci�n: OAUTH2, BASIC, API_KEY
+6. supports_push_notifications (boolean, DEFAULT TRUE) - Soporte para notificaciones push
+7. supports_threading (boolean, DEFAULT TRUE) - Soporte para threading de emails
+8. configuration (json) - Configuraci�n espec�fica del proveedor
+9. rate_limit_per_minute (int) - L�mite de requests por minuto
+10. is_active (boolean, DEFAULT TRUE) - Estado activo del proveedor
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(provider_name)
+Relaciones:
+* Conecta con EMAIL_ACCOUNTS (one-to-many)
+�ndices Sugeridos:
+* INDEX(provider_type)
+* INDEX(is_active)
+
+TABLA 264: EMAIL_ACCOUNTS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. contact_id (int, FK ? CONTACTS) - Empleado responsable de la cuenta
+4. email_provider_id (int, FK ? EMAIL_PROVIDERS) - Proveedor de email
+5. email_address (varchar(255)) - Direcci�n de email principal
+6. account_name (varchar(100)) - Nombre descriptivo de la cuenta
+7. account_type (varchar(20)) - Tipo: PERSONAL, SHARED, DEPARTMENT, SUPPORT
+8. smtp_server (varchar(100)) - Servidor SMTP para env�o
+9. smtp_port (int) - Puerto SMTP
+10. imap_server (varchar(100)) - Servidor IMAP para recepci�n
+11. imap_port (int) - Puerto IMAP
+12. username (varchar(100)) - Username para autenticaci�n
+13. password_encrypted (varchar(255)) - Password encriptado
+14. oauth_token_encrypted (varchar(255)) - Token OAuth encriptado
+15. oauth_refresh_token_encrypted (varchar(255)) - Refresh token OAuth
+16. sync_status (varchar(20)) - Estado: CONNECTED, ERROR, SYNCING, PAUSED
+17. last_sync_at (timestamp) - �ltima sincronizaci�n exitosa
+18. sync_interval_minutes (int, DEFAULT 15) - Intervalo de sincronizaci�n
+19. auto_assign_enabled (boolean, DEFAULT FALSE) - Auto-asignaci�n de emails
+20. is_primary (boolean, DEFAULT FALSE) - Cuenta principal del contacto
+21. is_active (boolean, DEFAULT TRUE) - Estado activo de la cuenta
+22. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+23. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_address)
+* UNIQUE(contact_id) WHERE is_primary = TRUE
+Relaciones:
+* Pertenece a ORGANIZATIONS (many-to-one)
+* Asignada a CONTACTS (many-to-one)
+* Usa EMAIL_PROVIDERS (many-to-one)
+�ndices Sugeridos:
+* INDEX(organization_id, sync_status)
+* INDEX(contact_id, is_primary)
+* INDEX(last_sync_at)
+
+TABLA 265: EMAIL_FOLDERS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_account_id (int, FK ? EMAIL_ACCOUNTS) - Cuenta de email propietaria
+3. folder_name (varchar(100)) - Nombre de la carpeta
+4. folder_type (varchar(20)) - Tipo: INBOX, SENT, DRAFTS, TRASH, CUSTOM
+5. external_folder_id (varchar(100)) - ID de carpeta en el proveedor externo
+6. parent_folder_id (int, FK ? EMAIL_FOLDERS) - Carpeta padre (jerarqu�a)
+7. folder_path (varchar(255)) - Ruta completa de la carpeta
+8. message_count (int, DEFAULT 0) - Cantidad total de mensajes
+9. unread_count (int, DEFAULT 0) - Cantidad de mensajes no le�dos
+10. last_sync_at (timestamp) - �ltima sincronizaci�n de la carpeta
+11. sync_enabled (boolean, DEFAULT TRUE) - Si se debe sincronizar
+12. is_system_folder (boolean, DEFAULT FALSE) - Carpeta del sistema vs custom
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_account_id, external_folder_id)
+Relaciones:
+* Pertenece a EMAIL_ACCOUNTS (many-to-one)
+* Puede tener EMAIL_FOLDERS padre (self-referential)
+�ndices Sugeridos:
+* INDEX(email_account_id, folder_type)
+* INDEX(parent_folder_id)
+* INDEX(sync_enabled)
+
+TABLA 266: EMAIL_MESSAGES
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_account_id (int, FK ? EMAIL_ACCOUNTS) - Cuenta de email
+3. email_folder_id (int, FK ? EMAIL_FOLDERS) - Carpeta contenedora
+4. message_id (varchar(255)) - ID �nico del mensaje en el proveedor
+5. thread_id (varchar(255)) - ID de thread para agrupaci�n
+6. subject (varchar(500)) - Asunto del email
+7. body_text (text) - Contenido en texto plano
+8. body_html (text) - Contenido en HTML
+9. from_address (varchar(255)) - Direcci�n del remitente
+10. from_name (varchar(255)) - Nombre del remitente
+11. to_addresses (json) - Array de destinatarios TO
+12. cc_addresses (json) - Array de destinatarios CC
+13. bcc_addresses (json) - Array de destinatarios BCC
+14. reply_to_address (varchar(255)) - Direcci�n de respuesta
+15. sent_at (timestamp) - Fecha y hora de env�o
+16. received_at (timestamp) - Fecha y hora de recepci�n
+17. is_read (boolean, DEFAULT FALSE) - Estado de lectura
+18. is_starred (boolean, DEFAULT FALSE) - Marcado con estrella
+19. is_important (boolean, DEFAULT FALSE) - Marcado como importante
+20. priority_level (varchar(10), DEFAULT 'NORMAL') - Prioridad: HIGH, NORMAL, LOW
+21. context_type (varchar(30)) - Tipo de contexto: CUSTOMER_PROJECT, CUSTOMER_JOB, PROPERTY, CONTACT
+22. context_id (int) - ID del contexto espec�fico
+23. assigned_to_contact_id (int, FK ? CONTACTS) - Empleado asignado
+24. has_attachments (boolean, DEFAULT FALSE) - Indica si tiene adjuntos
+25. attachment_count (int, DEFAULT 0) - Cantidad de archivos adjuntos
+26. metadata (json) - Metadata adicional del proveedor
+27. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+28. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_account_id, message_id)
+Relaciones:
+* Pertenece a EMAIL_ACCOUNTS (many-to-one)
+* Ubicado en EMAIL_FOLDERS (many-to-one)
+* Asignado a CONTACTS (many-to-one)
+* Vinculado a contextos (CUSTOMER_PROJECTS, CUSTOMER_JOBS, etc.)
+�ndices Sugeridos:
+* INDEX(email_account_id, thread_id)
+* INDEX(context_type, context_id)
+* INDEX(assigned_to_contact_id)
+* INDEX(sent_at DESC)
+* INDEX(is_read, received_at DESC)
+
+TABLA 267: EMAIL_ATTACHMENTS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_message_id (int, FK ? EMAIL_MESSAGES) - Mensaje contenedor
+3. attachment_name (varchar(255)) - Nombre original del archivo
+4. file_url (varchar(500)) - URL de acceso al archivo
+5. s3_key (varchar(500)) - Clave del archivo en AWS S3
+6. s3_bucket (varchar(100)) - Bucket de AWS S3
+7. mime_type (varchar(100)) - Tipo MIME del archivo
+8. file_size (int) - Tama�o del archivo en bytes
+9. attachment_id (varchar(255)) - ID del adjunto en el proveedor
+10. is_inline (boolean, DEFAULT FALSE) - Adjunto inline vs attachment
+11. content_id (varchar(255)) - Content-ID para attachments inline
+12. download_status (varchar(20), DEFAULT 'PENDING') - Estado: PENDING, DOWNLOADED, ERROR
+13. virus_scan_status (varchar(20), DEFAULT 'PENDING') - Estado antivirus: PENDING, CLEAN, INFECTED
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_message_id, attachment_id)
+Relaciones:
+* Pertenece a EMAIL_MESSAGES (many-to-one)
+�ndices Sugeridos:
+* INDEX(email_message_id)
+* INDEX(download_status)
+* INDEX(file_size)
+
+TABLA 268: EMAIL_RECIPIENTS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_message_id (int, FK ? EMAIL_MESSAGES) - Mensaje asociado
+3. contact_id (int, FK ? CONTACTS) - Contacto destinatario (si existe en sistema)
+4. email_address (varchar(255)) - Direcci�n de email del destinatario
+5. display_name (varchar(255)) - Nombre a mostrar
+6. recipient_type (varchar(5)) - Tipo: TO, CC, BCC
+7. delivery_status (varchar(20)) - Estado: PENDING, DELIVERED, FAILED, BOUNCED
+8. read_status (varchar(20)) - Estado de lectura: UNKNOWN, READ, UNREAD
+9. delivered_at (timestamp) - Fecha de entrega
+10. read_at (timestamp) - Fecha de lectura (si disponible)
+11. bounce_reason (varchar(255)) - Raz�n del bounce si aplica
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_message_id, email_address, recipient_type)
+Relaciones:
+* Pertenece a EMAIL_MESSAGES (many-to-one)
+* Puede vincular a CONTACTS (many-to-one, opcional)
+�ndices Sugeridos:
+* INDEX(email_message_id, recipient_type)
+* INDEX(contact_id)
+* INDEX(delivery_status)
+
+TABLA 269: EMAIL_TEMPLATES
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. created_by_contact_id (int, FK ? CONTACTS) - Empleado creador
+4. template_name (varchar(100)) - Nombre del template
+5. template_category (varchar(30)) - Categor�a: SALES, OPERATIONS, BILLING, HR, MARKETING
+6. template_subcategory (varchar(50)) - Subcategor�a espec�fica
+7. subject_line (varchar(500)) - L�nea de asunto con variables
+8. body_html (text) - Contenido HTML del template
+9. body_text (text) - Contenido en texto plano
+10. variables_schema (json) - Schema de variables disponibles
+11. default_variables (json) - Valores por defecto de variables
+12. usage_context (varchar(50)) - Contexto de uso: ESTIMATE_SENT, INSPECTION_SCHEDULED, etc.
+13. is_system_template (boolean, DEFAULT FALSE) - Template del sistema vs custom
+14. is_active (boolean, DEFAULT TRUE) - Estado activo del template
+15. usage_count (int, DEFAULT 0) - Contador de usos
+16. last_used_at (timestamp) - �ltima vez usado
+17. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, template_name)
+Relaciones:
+* Pertenece a ORGANIZATIONS (many-to-one)
+* Creado por CONTACTS (many-to-one)
+�ndices Sugeridos:
+* INDEX(organization_id, template_category)
+* INDEX(usage_context)
+* INDEX(is_active, usage_count DESC)
+
+TABLA 270: EMAIL_TEMPLATE_VARIABLES
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. variable_name (varchar(50)) - Nombre de la variable
+3. variable_category (varchar(30)) - Categor�a: CONTACT, PROJECT, COMPANY, SYSTEM
+4. data_type (varchar(20)) - Tipo de dato: STRING, NUMBER, DATE, BOOLEAN
+5. data_source_table (varchar(50)) - Tabla fuente del dato
+6. data_source_field (varchar(50)) - Campo fuente del dato
+7. format_template (varchar(100)) - Template de formateo (para fechas, n�meros)
+8. description (varchar(255)) - Descripci�n del uso de la variable
+9. is_required (boolean, DEFAULT FALSE) - Variable obligatoria
+10. default_value (varchar(255)) - Valor por defecto
+11. is_system_variable (boolean, DEFAULT FALSE) - Variable del sistema
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(variable_name)
+Relaciones:
+* Usado por EMAIL_TEMPLATES a trav�s de variables_schema
+�ndices Sugeridos:
+* INDEX(variable_category)
+* INDEX(data_source_table)
+* INDEX(is_system_variable)
+
+TABLA 271: EMAIL_AUTOMATED_RESPONSES
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. email_account_id (int, FK ? EMAIL_ACCOUNTS) - Cuenta de email espec�fica
+4. rule_name (varchar(100)) - Nombre de la regla de auto-respuesta
+5. trigger_conditions (json) - Condiciones para activar respuesta
+6. email_template_id (int, FK ? EMAIL_TEMPLATES) - Template a usar
+7. response_delay_minutes (int, DEFAULT 0) - Delay antes de responder
+8. active_hours_start (time) - Hora de inicio de auto-respuestas
+9. active_hours_end (time) - Hora de fin de auto-respuestas
+10. active_days (varchar(20), DEFAULT 'MON-FRI') - D�as activos
+11. max_responses_per_thread (int, DEFAULT 1) - M�ximo respuestas por thread
+12. is_out_of_office (boolean, DEFAULT FALSE) - Respuesta de ausencia
+13. is_active (boolean, DEFAULT TRUE) - Estado activo de la regla
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, rule_name)
+Relaciones:
+* Pertenece a ORGANIZATIONS (many-to-one)
+* Asignada a EMAIL_ACCOUNTS (many-to-one)
+* Usa EMAIL_TEMPLATES (many-to-one)
+�ndices Sugeridos:
+* INDEX(email_account_id, is_active)
+* INDEX(is_out_of_office)
+
+TABLA 272: EMAIL_CAMPAIGNS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. created_by_contact_id (int, FK ? CONTACTS) - Empleado creador
+4. campaign_name (varchar(100)) - Nombre de la campa�a
+5. campaign_type (varchar(30)) - Tipo: NEWSLETTER, PROMOTION, FOLLOW_UP, NOTIFICATION
+6. email_template_id (int, FK ? EMAIL_TEMPLATES) - Template base
+7. target_audience_criteria (json) - Criterios de audiencia objetivo
+8. scheduled_send_at (timestamp) - Fecha programada de env�o
+9. send_status (varchar(20), DEFAULT 'DRAFT') - Estado: DRAFT, SCHEDULED, SENDING, SENT, CANCELLED
+10. total_recipients (int, DEFAULT 0) - Total de destinatarios
+11. emails_sent (int, DEFAULT 0) - Emails enviados exitosamente
+12. emails_delivered (int, DEFAULT 0) - Emails entregados
+13. emails_opened (int, DEFAULT 0) - Emails abiertos
+14. emails_clicked (int, DEFAULT 0) - Clicks en links
+15. bounce_count (int, DEFAULT 0) - Emails rebotados
+16. unsubscribe_count (int, DEFAULT 0) - Desuscripciones
+17. started_at (timestamp) - Inicio del env�o
+18. completed_at (timestamp) - Finalizaci�n del env�o
+19. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+20. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, campaign_name)
+Relaciones:
+* Pertenece a ORGANIZATIONS (many-to-one)
+* Creada por CONTACTS (many-to-one)
+* Usa EMAIL_TEMPLATES (many-to-one)
+�ndices Sugeridos:
+* INDEX(organization_id, send_status)
+* INDEX(scheduled_send_at)
+* INDEX(campaign_type)
+
+TABLA 273: EMAIL_ASSIGNMENTS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_message_id (int, FK ? EMAIL_MESSAGES) - Mensaje asignado
+3. assigned_to_contact_id (int, FK ? CONTACTS) - Empleado asignado
+4. assigned_by_contact_id (int, FK ? CONTACTS) - Quien asign�
+5. assignment_type (varchar(20)) - Tipo: MANUAL, AUTO, ESCALATED
+6. assignment_reason (varchar(255)) - Raz�n de la asignaci�n
+7. priority_level (varchar(10), DEFAULT 'NORMAL') - Prioridad: HIGH, NORMAL, LOW
+8. due_date (timestamp) - Fecha l�mite de respuesta
+9. status (varchar(20), DEFAULT 'PENDING') - Estado: PENDING, IN_PROGRESS, COMPLETED, ESCALATED
+10. response_required (boolean, DEFAULT TRUE) - Si requiere respuesta
+11. completed_at (timestamp) - Fecha de completado
+12. notes (text) - Notas de la asignaci�n
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_message_id, assigned_to_contact_id)
+Relaciones:
+* Asigna EMAIL_MESSAGES (many-to-one)
+* Asignado a CONTACTS (many-to-one)
+* Asignado por CONTACTS (many-to-one)
+�ndices Sugeridos:
+* INDEX(assigned_to_contact_id, status)
+* INDEX(due_date, status)
+* INDEX(priority_level)
+
+TABLA 274: EMAIL_THREADS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. thread_id (varchar(255)) - ID �nico del thread
+3. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+4. subject_line (varchar(500)) - Asunto base del thread
+5. context_type (varchar(30)) - Tipo de contexto: CUSTOMER_PROJECT, CUSTOMER_JOB, PROPERTY, CONTACT
+6. context_id (int) - ID del contexto espec�fico
+7. participants (json) - Array de participantes del thread
+8. message_count (int, DEFAULT 0) - Total de mensajes en el thread
+9. last_message_at (timestamp) - �ltimo mensaje del thread
+10. last_activity_contact_id (int, FK ? CONTACTS) - �ltimo contacto con actividad
+11. is_archived (boolean, DEFAULT FALSE) - Thread archivado
+12. is_important (boolean, DEFAULT FALSE) - Thread marcado como importante
+13. assigned_to_contact_id (int, FK ? CONTACTS) - Empleado asignado al thread
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(thread_id)
+Relaciones:
+* Pertenece a ORGANIZATIONS (many-to-one)
+* Vinculado a contextos espec�ficos
+* Asignado a CONTACTS (many-to-one)
+�ndices Sugeridos:
+* INDEX(context_type, context_id)
+* INDEX(assigned_to_contact_id, is_archived)
+* INDEX(last_message_at DESC)
+
+TABLA 275: EMAIL_LABELS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. label_name (varchar(50)) - Nombre de la etiqueta
+4. label_color (varchar(7)) - Color en formato hex
+5. label_category (varchar(30)) - Categor�a: PRIORITY, STATUS, PROJECT, CUSTOM
+6. description (varchar(255)) - Descripci�n de la etiqueta
+7. is_system_label (boolean, DEFAULT FALSE) - Etiqueta del sistema vs custom
+8. created_by_contact_id (int, FK ? CONTACTS) - Empleado creador
+9. is_active (boolean, DEFAULT TRUE) - Estado activo de la etiqueta
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, label_name)
+Relaciones:
+* Pertenece a ORGANIZATIONS (many-to-one)
+* Creada por CONTACTS (many-to-one)
+�ndices Sugeridos:
+* INDEX(organization_id, label_category)
+* INDEX(is_system_label)
+
+TABLA 276: EMAIL_TRACKING_PIXELS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_message_id (int, FK ? EMAIL_MESSAGES) - Mensaje rastreado
+3. recipient_email (varchar(255)) - Email del destinatario
+4. tracking_token (varchar(255)) - Token �nico de rastreo
+5. pixel_url (varchar(500)) - URL del pixel de rastreo
+6. opened_at (timestamp) - Primera apertura
+7. open_count (int, DEFAULT 0) - N�mero total de aperturas
+8. last_opened_at (timestamp) - �ltima apertura
+9. user_agent (varchar(500)) - User agent del navegador
+10. ip_address (varchar(45)) - IP address del usuario
+11. location_data (json) - Datos de geolocalizaci�n
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(tracking_token)
+Relaciones:
+* Rastrea EMAIL_MESSAGES (many-to-one)
+�ndices Sugeridos:
+* INDEX(email_message_id, recipient_email)
+* INDEX(opened_at DESC)
+* INDEX(tracking_token)
+
+TABLA 277: EMAIL_LINK_CLICKS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_message_id (int, FK ? EMAIL_MESSAGES) - Mensaje con el link
+3. recipient_email (varchar(255)) - Email del destinatario
+4. original_url (varchar(1000)) - URL original del link
+5. tracking_url (varchar(1000)) - URL de rastreo generada
+6. click_token (varchar(255)) - Token �nico del click
+7. clicked_at (timestamp) - Fecha del click
+8. click_count (int, DEFAULT 0) - N�mero de clicks del usuario
+9. user_agent (varchar(500)) - User agent del navegador
+10. ip_address (varchar(45)) - IP address del click
+11. referrer (varchar(500)) - P�gina referente
+12. location_data (json) - Datos de geolocalizaci�n
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(click_token)
+Relaciones:
+* Rastrea clicks en EMAIL_MESSAGES (many-to-one)
+�ndices Sugeridos:
+* INDEX(email_message_id, recipient_email)
+* INDEX(clicked_at DESC)
+* INDEX(original_url)
+
+TABLA 278: EMAIL_DELIVERY_STATUS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_message_id (int, FK ? EMAIL_MESSAGES) - Mensaje rastreado
+3. recipient_email (varchar(255)) - Email del destinatario
+4. delivery_status (varchar(20)) - Estado: SENT, DELIVERED, BOUNCED, REJECTED, DEFERRED
+5. bounce_type (varchar(20)) - Tipo de bounce: HARD, SOFT, TECHNICAL
+6. bounce_reason (varchar(255)) - Raz�n espec�fica del bounce
+7. smtp_response (text) - Respuesta completa del servidor SMTP
+8. delivery_time_seconds (decimal(10,3)) - Tiempo de entrega en segundos
+9. sent_at (timestamp) - Momento del env�o
+10. delivered_at (timestamp) - Momento de entrega
+11. bounced_at (timestamp) - Momento del bounce
+12. provider_message_id (varchar(255)) - ID del mensaje en el proveedor
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_message_id, recipient_email)
+Relaciones:
+* Rastrea entrega de EMAIL_MESSAGES (many-to-one)
+�ndices Sugeridos:
+* INDEX(email_message_id)
+* INDEX(delivery_status, bounced_at)
+* INDEX(recipient_email, delivery_status)
+
+TABLA 279: EMAIL_PERMISSIONS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_account_id (int, FK ? EMAIL_ACCOUNTS) - Cuenta de email
+3. contact_id (int, FK ? CONTACTS) - Empleado con permisos
+4. permission_type (varchar(20)) - Tipo: READ, SEND, MANAGE, ADMIN
+5. folder_access (json) - Array de carpetas permitidas
+6. can_assign_emails (boolean, DEFAULT FALSE) - Puede asignar emails
+7. can_create_templates (boolean, DEFAULT FALSE) - Puede crear templates
+8. can_manage_signatures (boolean, DEFAULT FALSE) - Puede gestionar firmas
+9. can_view_analytics (boolean, DEFAULT FALSE) - Puede ver analytics
+10. granted_by_contact_id (int, FK ? CONTACTS) - Quien otorg� permisos
+11. granted_at (timestamp, DEFAULT NOW()) - Fecha de otorgamiento
+12. expires_at (timestamp) - Fecha de expiraci�n (opcional)
+13. is_active (boolean, DEFAULT TRUE) - Estado activo del permiso
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_account_id, contact_id, permission_type)
+Relaciones:
+* Asigna permisos a EMAIL_ACCOUNTS (many-to-one)
+* Otorga permisos a CONTACTS (many-to-one)
+* Otorgado por CONTACTS (many-to-one)
+�ndices Sugeridos:
+* INDEX(contact_id, permission_type)
+* INDEX(expires_at, is_active)
+
+TABLA 280: EMAIL_PERFORMANCE_METRICS
+M�dulo: EMAILS ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. email_account_id (int, FK ? EMAIL_ACCOUNTS) - Cuenta espec�fica (opcional)
+4. contact_id (int, FK ? CONTACTS) - Empleado espec�fico (opcional)
+5. metric_date (date) - Fecha de las m�tricas
+6. emails_sent (int, DEFAULT 0) - Emails enviados
+7. emails_delivered (int, DEFAULT 0) - Emails entregados
+8. emails_opened (int, DEFAULT 0) - Emails abiertos
+9. emails_clicked (int, DEFAULT 0) - Emails con clicks
+10. emails_replied (int, DEFAULT 0) - Emails respondidos
+11. emails_bounced (int, DEFAULT 0) - Emails rebotados
+12. emails_unsubscribed (int, DEFAULT 0) - Desuscripciones
+13. response_time_avg_hours (decimal(8,2)) - Tiempo promedio de respuesta
+14. delivery_rate_percent (decimal(5,2)) - Tasa de entrega
+15. open_rate_percent (decimal(5,2)) - Tasa de apertura
+16. click_rate_percent (decimal(5,2)) - Tasa de clicks
+17. bounce_rate_percent (decimal(5,2)) - Tasa de rebote
+18. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, email_account_id, contact_id, metric_date)
+Relaciones:
+* Pertenece a ORGANIZATIONS (many-to-one)
+* Puede ser espec�fica de EMAIL_ACCOUNTS (many-to-one)
+* Puede ser espec�fica de CONTACTS (many-to-one)
+�ndices Sugeridos:
+* INDEX(organization_id, metric_date DESC)
+* INDEX(email_account_id, metric_date DESC)
+* INDEX(contact_id, metric_date DESC)
+
+?? RELACIONES PRINCIPALES DEL M�DULO
+EMAIL_ACCOUNTS como hub central:
+* Conecta con ORGANIZATIONS (multi-tenant)
+* Asignada a CONTACTS (employees)
+* Usa EMAIL_PROVIDERS (Gmail, Outlook, etc.)
+EMAIL_MESSAGES centro de actividad:
+* Almacenados en EMAIL_FOLDERS
+* Contextualizados (projects, jobs, properties)
+* Asignados via EMAIL_ASSIGNMENTS
+* Agrupados en EMAIL_THREADS
+EMAIL_TEMPLATES sistema de automatizaci�n:
+* Usan EMAIL_TEMPLATE_VARIABLES
+* Alimentan EMAIL_CAMPAIGNS
+* Utilizados por EMAIL_AUTOMATED_RESPONSES
+Analytics y tracking completo:
+* EMAIL_TRACKING_PIXELS (aperturas)
+* EMAIL_LINK_CLICKS (engagement)
+* EMAIL_DELIVERY_STATUS (entrega)
+* EMAIL_PERFORMANCE_METRICS (KPIs)
+?? CAPACIDADES ENTERPRISE
+? Multi-Provider Support: Gmail, Outlook, IMAP, Exchange ? Threading Contextual: Por project, job, property, contact ? Assignment System: Collaborative email management ? Template Engine: Variables din�micas reutilizables ? Analytics Completo: Open rates, click tracking, delivery ? Permissions Granulares: Control de acceso detallado ? Auto-Responses: Reglas inteligentes de respuesta ? Campaign Management: Email marketing integrado

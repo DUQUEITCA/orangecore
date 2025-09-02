@@ -1,0 +1,368 @@
+A continuación, se presenta el DDL (Data Definition Language) completo para el módulo de **NOTIFICATIONS SYSTEM ENTERPRISE**, que incluye la creación del esquema, todas las tablas y sus relaciones, asegurando el manejo correcto de las dependencias preexistentes.
+
+-----
+
+### 1\. Creación del Esquema `notifications_system_enterprise`
+
+Se crea el esquema que albergará todas las tablas del sistema de notificaciones.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS notifications_system_enterprise;
+SET search_path TO notifications_system_enterprise;
+```
+
+-----
+
+### 2\. Definición de Tablas y sus Relaciones
+
+Las tablas se definen en un orden que garantiza que las llaves foráneas (`FOREIGN KEYS`) se referencien correctamente. Las dependencias externas se vinculan a los esquemas `base_foundation` y `workflows_automation_engine`.
+
+```sql
+-- TABLA 330: NOTIFICATION_TYPES
+-- Define los tipos de notificaciones disponibles en el sistema.
+CREATE TABLE notifications_system_enterprise.notification_types (
+    id SERIAL PRIMARY KEY,
+    type_name VARCHAR(50) UNIQUE NOT NULL,
+    type_category VARCHAR(30),
+    display_name VARCHAR(100),
+    description TEXT,
+    default_channels JSON,
+    requires_acknowledgment BOOLEAN DEFAULT FALSE,
+    max_retry_attempts INTEGER DEFAULT 3,
+    escalation_enabled BOOLEAN DEFAULT FALSE,
+    compliance_required BOOLEAN DEFAULT FALSE,
+    icon_name VARCHAR(50),
+    default_priority VARCHAR(20) DEFAULT 'MEDIUM',
+    is_user_configurable BOOLEAN DEFAULT TRUE,
+    weather_dependent BOOLEAN DEFAULT FALSE,
+    business_hours_only BOOLEAN DEFAULT FALSE,
+    requires_site_supervisor BOOLEAN DEFAULT FALSE,
+    insurance_reportable BOOLEAN DEFAULT FALSE,
+    emergency_override_quiet_hours BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para optimización
+CREATE INDEX idx_notification_types_category_active ON notifications_system_enterprise.notification_types (type_category, is_active);
+CREATE INDEX idx_notification_types_ack ON notifications_system_enterprise.notification_types (requires_acknowledgment);
+
+-- TABLA 331: NOTIFICATION_TEMPLATES
+-- Almacena templates de contenido para diferentes tipos de notificaciones y canales.
+CREATE TABLE notifications_system_enterprise.notification_templates (
+    id SERIAL PRIMARY KEY,
+    notification_type_id INTEGER NOT NULL,
+    template_name VARCHAR(100),
+    channel_type VARCHAR(20),
+    subject_template VARCHAR(200),
+    content_template TEXT,
+    variables_schema JSON,
+    language_code VARCHAR(5) DEFAULT 'en',
+    is_html BOOLEAN DEFAULT FALSE,
+    personalization_level VARCHAR(20) DEFAULT 'BASIC',
+    a_b_test_group VARCHAR(10),
+    rich_content JSON,
+    action_buttons JSON,
+    deep_link_url VARCHAR(500),
+    ai_optimization_enabled BOOLEAN DEFAULT FALSE,
+    ai_subject_variants JSON,
+    ai_content_variants JSON,
+    performance_score DECIMAL(3,2),
+    usage_count INTEGER DEFAULT 0,
+    last_used_at TIMESTAMP,
+    created_by_contact_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(notification_type_id, template_name, channel_type),
+    CONSTRAINT fk_templates_notification_type FOREIGN KEY (notification_type_id) REFERENCES notifications_system_enterprise.notification_types(id) ON DELETE CASCADE,
+    CONSTRAINT fk_templates_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_templates_type_channel ON notifications_system_enterprise.notification_templates (notification_type_id, channel_type);
+CREATE INDEX idx_templates_performance ON notifications_system_enterprise.notification_templates (performance_score DESC);
+CREATE INDEX idx_templates_language ON notifications_system_enterprise.notification_templates (language_code);
+
+-- TABLA 335: NOTIFICATION_TRIGGERS
+-- Define las condiciones que disparan una notificación.
+CREATE TABLE notifications_system_enterprise.notification_triggers (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    trigger_name VARCHAR(100),
+    trigger_type VARCHAR(30),
+    event_source VARCHAR(50),
+    event_conditions JSON,
+    notification_type_id INTEGER,
+    target_audience VARCHAR(30),
+    recipient_query TEXT,
+    template_variables JSON,
+    delay_minutes INTEGER DEFAULT 0,
+    is_repeatable BOOLEAN DEFAULT FALSE,
+    repeat_interval_hours INTEGER,
+    max_occurrences INTEGER,
+    priority_override VARCHAR(20),
+    channels_override JSON,
+    active_hours_start TIME,
+    active_hours_end TIME,
+    timezone VARCHAR(50),
+    workflow_definition_id INTEGER,
+    workflow_step_id INTEGER,
+    auto_acknowledge_on_workflow_complete BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_triggers_organization FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_triggers_notification_type FOREIGN KEY (notification_type_id) REFERENCES notifications_system_enterprise.notification_types(id) ON DELETE CASCADE,
+    CONSTRAINT fk_triggers_workflow_def FOREIGN KEY (workflow_definition_id) REFERENCES workflows_automation_engine.workflow_definitions(id),
+    CONSTRAINT fk_triggers_workflow_step FOREIGN KEY (workflow_step_id) REFERENCES workflows_automation_engine.workflow_steps(id),
+    CONSTRAINT fk_triggers_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_triggers_org_type_active ON notifications_system_enterprise.notification_triggers (organization_id, trigger_type, is_active);
+CREATE INDEX idx_triggers_event_source ON notifications_system_enterprise.notification_triggers (event_source, is_active);
+CREATE INDEX idx_triggers_workflow_def ON notifications_system_enterprise.notification_triggers (workflow_definition_id);
+
+-- TABLA 332: NOTIFICATION_QUEUE
+-- Cola de notificaciones a ser enviadas.
+CREATE TABLE notifications_system_enterprise.notification_queue (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    notification_type_id INTEGER,
+    template_id INTEGER,
+    trigger_id INTEGER,
+    priority VARCHAR(20) DEFAULT 'MEDIUM',
+    scheduled_for TIMESTAMP,
+    channels JSON,
+    content_variables JSON,
+    recipient_count INTEGER DEFAULT 1,
+    context_type VARCHAR(30),
+    context_id INTEGER,
+    status VARCHAR(20) DEFAULT 'PENDING',
+    sent_at TIMESTAMP,
+    delivery_confirmation_required BOOLEAN DEFAULT FALSE,
+    total_cost DECIMAL(6,2),
+    success_rate DECIMAL(5,2),
+    failure_reason VARCHAR(100),
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    next_retry_at TIMESTAMP,
+    escalated_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    business_impact_score DECIMAL(5,2),
+    signalr_group_id VARCHAR(100),
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_queue_organization FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_queue_notification_type FOREIGN KEY (notification_type_id) REFERENCES notifications_system_enterprise.notification_types(id) ON DELETE SET NULL,
+    CONSTRAINT fk_queue_template FOREIGN KEY (template_id) REFERENCES notifications_system_enterprise.notification_templates(id) ON DELETE SET NULL,
+    CONSTRAINT fk_queue_trigger FOREIGN KEY (trigger_id) REFERENCES notifications_system_enterprise.notification_triggers(id) ON DELETE SET NULL,
+    CONSTRAINT fk_queue_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_queue_org_status_prio ON notifications_system_enterprise.notification_queue (organization_id, status, priority);
+CREATE INDEX idx_queue_scheduled_status ON notifications_system_enterprise.notification_queue (scheduled_for, status);
+CREATE INDEX idx_queue_context ON notifications_system_enterprise.notification_queue (context_type, context_id);
+CREATE INDEX idx_queue_expires ON notifications_system_enterprise.notification_queue (expires_at);
+
+-- TABLA 333: NOTIFICATION_DELIVERY_LOG
+-- Registra el estado de entrega y engagement de cada notificación enviada a un destinatario.
+CREATE TABLE notifications_system_enterprise.notification_delivery_log (
+    id SERIAL PRIMARY KEY,
+    notification_queue_id INTEGER NOT NULL,
+    recipient_contact_id INTEGER NOT NULL,
+    channel_type VARCHAR(20),
+    delivery_status VARCHAR(20),
+    provider_name VARCHAR(30),
+    provider_message_id VARCHAR(100),
+    delivery_attempt INTEGER DEFAULT 1,
+    sent_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    opened_at TIMESTAMP,
+    clicked_at TIMESTAMP,
+    replied_at TIMESTAMP,
+    acknowledged_at TIMESTAMP,
+    cost DECIMAL(6,4),
+    processing_time_ms INTEGER,
+    delivery_time_minutes DECIMAL(8,2),
+    response_time_minutes DECIMAL(8,2),
+    personalized_content TEXT,
+    device_info JSON,
+    location_data JSON,
+    user_agent VARCHAR(255),
+    ip_address VARCHAR(45),
+    engagement_score DECIMAL(3,2),
+    retention_days INTEGER DEFAULT 2555,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(notification_queue_id, recipient_contact_id, channel_type),
+    CONSTRAINT fk_delivery_log_queue FOREIGN KEY (notification_queue_id) REFERENCES notifications_system_enterprise.notification_queue(id) ON DELETE CASCADE,
+    CONSTRAINT fk_delivery_log_recipient FOREIGN KEY (recipient_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_delivery_log_queue_status ON notifications_system_enterprise.notification_delivery_log (notification_queue_id, delivery_status);
+CREATE INDEX idx_delivery_log_recipient_sent ON notifications_system_enterprise.notification_delivery_log (recipient_contact_id, sent_at);
+CREATE INDEX idx_delivery_log_channel_status ON notifications_system_enterprise.notification_delivery_log (channel_type, delivery_status);
+CREATE INDEX idx_delivery_log_delivered_opened ON notifications_system_enterprise.notification_delivery_log (delivered_at, opened_at);
+
+-- TABLA 334: NOTIFICATION_FAILURES
+-- Registra los fallos de notificaciones.
+CREATE TABLE notifications_system_enterprise.notification_failures (
+    id SERIAL PRIMARY KEY,
+    notification_queue_id INTEGER NOT NULL,
+    channel_type VARCHAR(20),
+    failure_type VARCHAR(30),
+    error_code VARCHAR(50),
+    error_message TEXT,
+    failure_timestamp TIMESTAMP,
+    is_permanent BOOLEAN DEFAULT FALSE,
+    retry_count INTEGER DEFAULT 0,
+    next_retry_at TIMESTAMP,
+    auto_escalated BOOLEAN DEFAULT FALSE,
+    resolution_action VARCHAR(50),
+    resolved_at TIMESTAMP,
+    resolved_by_contact_id INTEGER,
+    notes TEXT,
+    retention_days INTEGER DEFAULT 2555,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_failures_queue FOREIGN KEY (notification_queue_id) REFERENCES notifications_system_enterprise.notification_queue(id) ON DELETE CASCADE,
+    CONSTRAINT fk_failures_resolver FOREIGN KEY (resolved_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_failures_queue_type ON notifications_system_enterprise.notification_failures (notification_queue_id, failure_type);
+CREATE INDEX idx_failures_permanent_ts ON notifications_system_enterprise.notification_failures (failure_timestamp, is_permanent);
+CREATE INDEX idx_failures_next_retry ON notifications_system_enterprise.notification_failures (next_retry_at, auto_escalated);
+
+-- TABLA 336: NOTIFICATION_RULES
+-- Define reglas de negocio para el procesamiento de notificaciones.
+CREATE TABLE notifications_system_enterprise.notification_rules (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    rule_name VARCHAR(100),
+    rule_category VARCHAR(30),
+    rule_type VARCHAR(20),
+    conditions JSON,
+    actions JSON,
+    priority_adjustment INTEGER DEFAULT 0,
+    channel_modifications JSON,
+    template_overrides JSON,
+    suppression_rules JSON,
+    ai_enhanced BOOLEAN DEFAULT FALSE,
+    success_metrics JSON,
+    a_b_test_enabled BOOLEAN DEFAULT FALSE,
+    execution_order INTEGER DEFAULT 100,
+    is_global BOOLEAN DEFAULT FALSE,
+    created_by_contact_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_rules_organization FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_rules_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_rules_org_cat_active ON notifications_system_enterprise.notification_rules (organization_id, rule_category, is_active);
+CREATE INDEX idx_rules_execution_order ON notifications_system_enterprise.notification_rules (execution_order, is_active);
+CREATE INDEX idx_rules_global_active ON notifications_system_enterprise.notification_rules (is_global, is_active);
+
+-- TABLA 337: ESCALATION_RULES
+-- Reglas para la escalada automática de notificaciones no entregadas o no reconocidas.
+CREATE TABLE notifications_system_enterprise.escalation_rules (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    escalation_name VARCHAR(100) NOT NULL,
+    notification_type_id INTEGER NOT NULL,
+    escalation_sequence JSON,
+    trigger_delay_minutes INTEGER DEFAULT 15,
+    retry_interval_minutes INTEGER,
+    max_escalation_levels INTEGER,
+    recipient_type VARCHAR(20),
+    recipient_query TEXT,
+    notification_template_id INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_escalation_rules_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_escalation_rules_type FOREIGN KEY (notification_type_id) REFERENCES notifications_system_enterprise.notification_types(id) ON DELETE CASCADE,
+    CONSTRAINT fk_escalation_rules_template FOREIGN KEY (notification_template_id) REFERENCES notifications_system_enterprise.notification_templates(id),
+    CONSTRAINT fk_escalation_rules_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_escalation_rules_org_type ON notifications_system_enterprise.escalation_rules (organization_id, notification_type_id);
+CREATE INDEX idx_escalation_rules_active ON notifications_system_enterprise.escalation_rules (is_active);
+
+-- TABLA 338: NOTIFICATION_RECIPIENTS
+-- Mapea los destinatarios a notificaciones en la cola.
+CREATE TABLE notifications_system_enterprise.notification_recipients (
+    id SERIAL PRIMARY KEY,
+    notification_queue_id INTEGER NOT NULL,
+    recipient_contact_id INTEGER NOT NULL,
+    send_status VARCHAR(20) DEFAULT 'PENDING',
+    retry_count INTEGER DEFAULT 0,
+    last_sent_at TIMESTAMP,
+    is_acknowledged BOOLEAN DEFAULT FALSE,
+    acknowledged_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(notification_queue_id, recipient_contact_id),
+    CONSTRAINT fk_recipients_queue FOREIGN KEY (notification_queue_id) REFERENCES notifications_system_enterprise.notification_queue(id) ON DELETE CASCADE,
+    CONSTRAINT fk_recipients_contact FOREIGN KEY (recipient_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_recipients_queue ON notifications_system_enterprise.notification_recipients (notification_queue_id);
+CREATE INDEX idx_recipients_contact_status ON notifications_system_enterprise.notification_recipients (recipient_contact_id, send_status);
+
+-- TABLA 339: NOTIFICATION_ANALYTICS
+-- Mtricas agregadas de rendimiento de notificaciones.
+CREATE TABLE notifications_system_enterprise.notification_analytics (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    metric_date DATE NOT NULL,
+    metric_hour INTEGER,
+    channel_type VARCHAR(20),
+    notification_type_id INTEGER,
+    notifications_sent INTEGER DEFAULT 0,
+    notifications_delivered INTEGER DEFAULT 0,
+    delivery_rate DECIMAL(5,2),
+    notifications_opened INTEGER DEFAULT 0,
+    open_rate DECIMAL(5,2),
+    notifications_clicked INTEGER DEFAULT 0,
+    click_rate DECIMAL(5,2),
+    bounces_soft INTEGER DEFAULT 0,
+    bounces_hard INTEGER DEFAULT 0,
+    failures_total INTEGER DEFAULT 0,
+    failure_rate DECIMAL(5,2),
+    retries_count INTEGER DEFAULT 0,
+    retry_rate DECIMAL(5,2),
+    cost_total DECIMAL(10,2),
+    cost_per_message DECIMAL(6,4),
+    revenue_attributed DECIMAL(12,2),
+    roi_calculation DECIMAL(8,2),
+    customer_satisfaction_score DECIMAL(3,2),
+    escalation_count INTEGER DEFAULT 0,
+    business_impact_score DECIMAL(5,2),
+    ai_optimization_applied BOOLEAN DEFAULT FALSE,
+    calculated_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, metric_date, metric_hour, channel_type, notification_type_id),
+    CONSTRAINT fk_analytics_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_analytics_type FOREIGN KEY (notification_type_id) REFERENCES notifications_system_enterprise.notification_types(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_analytics_org_date_hour ON notifications_system_enterprise.notification_analytics (organization_id, metric_date, metric_hour);
+CREATE INDEX idx_analytics_channel_type ON notifications_system_enterprise.notification_analytics (channel_type, notification_type_id);
+CREATE INDEX idx_analytics_roi ON notifications_system_enterprise.notification_analytics (roi_calculation DESC);
+CREATE INDEX idx_analytics_impact ON notifications_system_enterprise.notification_analytics (business_impact_score DESC);
+```

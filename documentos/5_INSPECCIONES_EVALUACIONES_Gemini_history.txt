@@ -1,0 +1,910 @@
+Como experto en PostgreSQL, a continuación le proporciono la definición completa de los esquemas, tablas y demás entidades para el módulo de **INSPECCIONES Y EVALUACIONES**, respetando el orden de dependencias para asegurar la creación exitosa.
+
+Este script asume que las tablas `base_foundation.customer_projects` y `base_foundation.contacts` ya existen, ya que las tablas de este módulo dependen de ellas para gestionar las relaciones con proyectos y usuarios.
+
+-----
+
+### 1\. Creación del Esquema `INSPECCIONES_EVALUACIONES`
+
+El primer paso es crear el esquema que contendrá todas las tablas del módulo.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS inspecciones_evaluaciones;
+SET search_path TO inspecciones_evaluaciones;
+```
+
+-----
+
+### 2\. Definición de Tablas sin Dependencias Internas
+
+Estas tablas pueden crearse primero, ya que no tienen claves foráneas que referencien a otras tablas dentro del mismo esquema.
+
+```sql
+[cite_start]-- TABLA: IICRC_STANDARDS [cite: 2, 3]
+CREATE TABLE inspecciones_evaluaciones.iicrc_standards (
+    id SERIAL PRIMARY KEY,
+    standard_code VARCHAR(10) UNIQUE NOT NULL,
+    standard_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    applicable_damage_types VARCHAR(100),
+    requirements JSON,
+    procedures JSON,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+[cite_start]-- TABLA: INSPECTION_TYPES [cite: 1, 2]
+CREATE TABLE inspecciones_evaluaciones.inspection_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    category VARCHAR(30) NOT NULL,
+    description TEXT,
+    iicrc_standard_id INTEGER,
+    required_fields JSON,
+    optional_fields JSON,
+    requires_equipment_readings BOOLEAN DEFAULT FALSE,
+    requires_moisture_mapping BOOLEAN DEFAULT FALSE,
+    requires_content_inventory BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(name, category),
+    CONSTRAINT fk_inspection_types_standard FOREIGN KEY (iicrc_standard_id) REFERENCES inspecciones_evaluaciones.iicrc_standards(id)
+);
+
+[cite_start]-- TABLA: DAMAGE_TYPES [cite: 8, 9]
+CREATE TABLE inspecciones_evaluaciones.damage_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    category VARCHAR(30),
+    description TEXT,
+    severity_scale VARCHAR(50),
+    assessment_criteria JSON,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+[cite_start]-- TABLA: WATER_DAMAGE_CATEGORIES [cite: 11, 12]
+CREATE TABLE inspecciones_evaluaciones.water_damage_categories (
+    id SERIAL PRIMARY KEY,
+    category_name VARCHAR(20) NOT NULL,
+    category_level VARCHAR(10) UNIQUE NOT NULL,
+    description TEXT,
+    source_description VARCHAR(255),
+    safety_requirements JSON,
+    drying_procedures JSON,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+[cite_start]-- TABLA: EQUIPMENT_TYPES [cite: 12, 13]
+CREATE TABLE inspecciones_evaluaciones.equipment_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    category VARCHAR(30) NOT NULL,
+    description TEXT,
+    manufacturer VARCHAR(50),
+    model_number VARCHAR(50),
+    specifications JSON,
+    reading_units VARCHAR(20),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(name, category)
+);
+
+[cite_start]-- TABLA: CONTENT_CATEGORIES [cite: 21, 22]
+CREATE TABLE inspecciones_evaluaciones.content_categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    requires_detailed_photos BOOLEAN DEFAULT FALSE,
+    typical_salvage_rate_percent DECIMAL(5,2),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+[cite_start]-- TABLA: SERVICE_CATEGORIES [cite: 36, 37]
+CREATE TABLE inspecciones_evaluaciones.service_categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    category_type VARCHAR(30),
+    description TEXT,
+    typical_duration_days INTEGER,
+    requires_certification BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+-----
+
+### 3\. Definición de Tablas con Dependencias en Tablas Base y en el Esquema Actual
+
+Estas tablas dependen de las tablas creadas en el punto anterior, además de las tablas del esquema `base_foundation`. Se recomienda crearlas en este orden.
+
+```sql
+[cite_start]-- TABLA: INSPECTIONS [cite: 4, 5, 6]
+CREATE TABLE inspecciones_evaluaciones.inspections (
+    id SERIAL PRIMARY KEY,
+    customer_project_id INTEGER,
+    inspection_type_id INTEGER NOT NULL,
+    iicrc_standard_id INTEGER,
+    inspector_contact_id INTEGER,
+    inspection_status VARCHAR(30) DEFAULT 'Scheduled',
+    inspection_date DATE,
+    start_time TIME,
+    end_time TIME,
+    general_notes TEXT,
+    weather_conditions JSON,
+    safety_concerns VARCHAR(255),
+    requires_follow_up BOOLEAN DEFAULT FALSE,
+    follow_up_date DATE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_inspections_project FOREIGN KEY (customer_project_id) REFERENCES base_foundation.customer_projects(id),
+    CONSTRAINT fk_inspections_type FOREIGN KEY (inspection_type_id) REFERENCES inspecciones_evaluaciones.inspection_types(id),
+    CONSTRAINT fk_inspections_standard FOREIGN KEY (iicrc_standard_id) REFERENCES inspecciones_evaluaciones.iicrc_standards(id),
+    CONSTRAINT fk_inspections_inspector FOREIGN KEY (inspector_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+[cite_start]-- TABLA: INSPECTION_AREAS [cite: 6, 7, 8]
+CREATE TABLE inspecciones_evaluaciones.inspection_areas (
+    id SERIAL PRIMARY KEY,
+    inspection_id INTEGER NOT NULL,
+    area_name VARCHAR(100),
+    area_type VARCHAR(50),
+    location_description VARCHAR(255),
+    area_measurements JSON,
+    access_restrictions VARCHAR(255),
+    area_notes TEXT,
+    order_sequence INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_inspection_areas_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id)
+);
+```
+
+-----
+
+### 4\. Definición de Tablas con Dependencias en Tablas del Esquema Actual
+
+Ahora se pueden crear las tablas que dependen de las entidades ya definidas, manteniendo el orden de las relaciones.
+
+```sql
+[cite_start]-- TABLA: DAMAGE_ASSESSMENTS [cite: 9, 10, 11]
+CREATE TABLE inspecciones_evaluaciones.damage_assessments (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    damage_type_id INTEGER NOT NULL,
+    severity_level VARCHAR(20),
+    damage_category VARCHAR(10),
+    affected_area_sqft DECIMAL(10,2),
+    damage_description TEXT,
+    cause_of_damage VARCHAR(255),
+    requires_immediate_attention BOOLEAN DEFAULT FALSE,
+    estimated_repair_cost DECIMAL(12,2),
+    damage_measurements JSON,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_damage_assessments_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_damage_assessments_type FOREIGN KEY (damage_type_id) REFERENCES inspecciones_evaluaciones.damage_types(id)
+);
+
+[cite_start]-- TABLA: INSPECTION_PHOTOS [cite: 26, 27, 28]
+CREATE TABLE inspecciones_evaluaciones.inspection_photos (
+    id SERIAL PRIMARY KEY,
+    inspection_id INTEGER NOT NULL,
+    inspection_area_id INTEGER,
+    photo_category VARCHAR(30),
+    photo_type VARCHAR(30),
+    file_url VARCHAR(500) NOT NULL,
+    s3_key VARCHAR(500) UNIQUE NOT NULL,
+    description VARCHAR(255),
+    sequence_order INTEGER,
+    gps_coordinates VARCHAR(50),
+    taken_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_inspection_photos_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id),
+    CONSTRAINT fk_inspection_photos_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id)
+);
+
+[cite_start]-- TABLA: INSPECTION_EQUIPMENT [cite: 13, 14, 15]
+CREATE TABLE inspecciones_evaluaciones.inspection_equipment (
+    id SERIAL PRIMARY KEY,
+    inspection_id INTEGER NOT NULL,
+    inspection_area_id INTEGER,
+    equipment_type_id INTEGER NOT NULL,
+    equipment_model VARCHAR(100),
+    serial_number VARCHAR(100),
+    installed_at TIMESTAMP,
+    removed_at TIMESTAMP,
+    placement_notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_inspection_equipment_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id),
+    CONSTRAINT fk_inspection_equipment_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_inspection_equipment_type FOREIGN KEY (equipment_type_id) REFERENCES inspecciones_evaluaciones.equipment_types(id)
+);
+
+[cite_start]-- TABLA: EQUIPMENT_READINGS [cite: 15, 16]
+CREATE TABLE inspecciones_evaluaciones.equipment_readings (
+    id SERIAL PRIMARY KEY,
+    inspection_equipment_id INTEGER NOT NULL,
+    reading_value DECIMAL(8,2) NOT NULL,
+    reading_unit VARCHAR(10),
+    reading_timestamp TIMESTAMP NOT NULL,
+    taken_by_contact_id INTEGER,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_equipment_readings_equipment FOREIGN KEY (inspection_equipment_id) REFERENCES inspecciones_evaluaciones.inspection_equipment(id),
+    CONSTRAINT fk_equipment_readings_contact FOREIGN KEY (taken_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+[cite_start]-- TABLA: MOISTURE_MAPPING_POINTS [cite: 17, 18]
+CREATE TABLE inspecciones_evaluaciones.moisture_mapping_points (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    point_identifier VARCHAR(10) NOT NULL,
+    x_coordinate_percent DECIMAL(5,2),
+    y_coordinate_percent DECIMAL(5,2),
+    reference_photo_id INTEGER,
+    material_type VARCHAR(30),
+    location_description VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(inspection_area_id, point_identifier),
+    CONSTRAINT fk_moisture_points_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_moisture_points_photo FOREIGN KEY (reference_photo_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id)
+);
+
+[cite_start]-- TABLA: MOISTURE_READINGS [cite: 18, 19, 20]
+CREATE TABLE inspecciones_evaluaciones.moisture_readings (
+    id SERIAL PRIMARY KEY,
+    moisture_point_id INTEGER NOT NULL,
+    inspection_id INTEGER NOT NULL,
+    moisture_content_percent DECIMAL(5,2),
+    temperature_f DECIMAL(5,2),
+    relative_humidity_percent DECIMAL(5,2),
+    reading_date TIMESTAMP NOT NULL,
+    day_number INTEGER,
+    taken_by_contact_id INTEGER,
+    equipment_used VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_moisture_readings_point FOREIGN KEY (moisture_point_id) REFERENCES inspecciones_evaluaciones.moisture_mapping_points(id),
+    CONSTRAINT fk_moisture_readings_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id),
+    CONSTRAINT fk_moisture_readings_contact FOREIGN KEY (taken_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+[cite_start]-- TABLA: PSYCHROMETRIC_READINGS [cite: 20, 21]
+CREATE TABLE inspecciones_evaluaciones.psychrometric_readings (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    temperature_f DECIMAL(5,2),
+    relative_humidity_percent DECIMAL(5,2),
+    grains_per_pound DECIMAL(6,2),
+    reading_location VARCHAR(20),
+    reading_timestamp TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_psychro_readings_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id)
+);
+
+[cite_start]-- TABLA: CONTENT_INVENTORY_ITEMS [cite: 22, 23, 24]
+CREATE TABLE inspecciones_evaluaciones.content_inventory_items (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    content_category_id INTEGER NOT NULL,
+    item_description VARCHAR(255) NOT NULL,
+    estimated_value DECIMAL(10,2),
+    condition_assessment VARCHAR(30),
+    location_found VARCHAR(100),
+    photo_urls JSON,
+    processing_notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_content_items_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_content_items_category FOREIGN KEY (content_category_id) REFERENCES inspecciones_evaluaciones.content_categories(id)
+);
+
+[cite_start]-- TABLA: CONTENT_PROCESSES [cite: 24, 25]
+CREATE TABLE inspecciones_evaluaciones.content_processes (
+    id SERIAL PRIMARY KEY,
+    content_item_id INTEGER NOT NULL,
+    process_type VARCHAR(30) NOT NULL,
+    process_status VARCHAR(20) DEFAULT 'Scheduled',
+    assigned_to_contact_id INTEGER,
+    scheduled_date DATE,
+    completed_date DATE,
+    storage_location VARCHAR(100),
+    process_notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_content_processes_item FOREIGN KEY (content_item_id) REFERENCES inspecciones_evaluaciones.content_inventory_items(id),
+    CONSTRAINT fk_content_processes_contact FOREIGN KEY (assigned_to_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+[cite_start]-- TABLA: PHOTO_ANNOTATIONS [cite: 28, 29]
+CREATE TABLE inspecciones_evaluaciones.photo_annotations (
+    id SERIAL PRIMARY KEY,
+    photo_id INTEGER NOT NULL,
+    annotation_type VARCHAR(20) NOT NULL,
+    x_coordinate_percent DECIMAL(5,2),
+    y_coordinate_percent DECIMAL(5,2),
+    annotation_text VARCHAR(255),
+    annotation_color VARCHAR(7),
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_photo_annotations_photo FOREIGN KEY (photo_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id),
+    CONSTRAINT fk_photo_annotations_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+[cite_start]-- TABLA: PHOTO_TAGS [cite: 30, 31]
+CREATE TABLE inspecciones_evaluaciones.photo_tags (
+    id SERIAL PRIMARY KEY,
+    photo_id INTEGER NOT NULL,
+    tag_name VARCHAR(50) NOT NULL,
+    tag_category VARCHAR(30),
+    is_common_tag BOOLEAN DEFAULT FALSE,
+    confidence_score DECIMAL(5,2),
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(photo_id, tag_name),
+    CONSTRAINT fk_photo_tags_photo FOREIGN KEY (photo_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id),
+    CONSTRAINT fk_photo_tags_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+[cite_start]-- TABLA: ROOF_AREAS [cite: 31, 32]
+CREATE TABLE inspecciones_evaluaciones.roof_areas (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    roof_section_name VARCHAR(50) NOT NULL,
+    stories_count INTEGER,
+    material_type VARCHAR(30),
+    age_years INTEGER,
+    total_squares DECIMAL(6,2),
+    is_walkable BOOLEAN DEFAULT FALSE,
+    safety_concerns TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(inspection_area_id, roof_section_name),
+    CONSTRAINT fk_roof_areas_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id)
+);
+
+[cite_start]-- TABLA: ROOF_PENETRATIONS [cite: 33, 34]
+CREATE TABLE inspecciones_evaluaciones.roof_penetrations (
+    id SERIAL PRIMARY KEY,
+    roof_area_id INTEGER NOT NULL,
+    penetration_type VARCHAR(30),
+    location_description VARCHAR(100),
+    condition_assessment VARCHAR(20),
+    requires_attention BOOLEAN DEFAULT FALSE,
+    photo_reference_id INTEGER,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_roof_penetrations_area FOREIGN KEY (roof_area_id) REFERENCES inspecciones_evaluaciones.roof_areas(id),
+    CONSTRAINT fk_roof_penetrations_photo FOREIGN KEY (photo_reference_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id)
+);
+
+[cite_start]-- TABLA: ROOF_SLOPES [cite: 34, 35, 36]
+CREATE TABLE inspecciones_evaluaciones.roof_slopes (
+    id SERIAL PRIMARY KEY,
+    roof_area_id INTEGER NOT NULL,
+    slope_section VARCHAR(30) NOT NULL,
+    pitch_ratio VARCHAR(10),
+    pitch_degrees DECIMAL(5,2),
+    square_footage DECIMAL(8,2),
+    photo_individual_id INTEGER,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(roof_area_id, slope_section),
+    CONSTRAINT fk_roof_slopes_area FOREIGN KEY (roof_area_id) REFERENCES inspecciones_evaluaciones.roof_areas(id),
+    CONSTRAINT fk_roof_slopes_photo FOREIGN KEY (photo_individual_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id)
+);
+
+[cite_start]-- TABLA: REQUIRED_SERVICES [cite: 37, 38]
+CREATE TABLE inspecciones_evaluaciones.required_services (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    service_category_id INTEGER NOT NULL,
+    priority_level VARCHAR(20),
+    urgency_hours INTEGER,
+    estimated_duration_days INTEGER,
+    service_notes TEXT,
+    requires_pre_approval BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(inspection_area_id, service_category_id),
+    CONSTRAINT fk_required_services_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_required_services_category FOREIGN KEY (service_category_id) REFERENCES inspecciones_evaluaciones.service_categories(id)
+);
+
+[cite_start]-- TABLA: COMPLETION_CERTIFICATES [cite: 39, 40]
+CREATE TABLE inspecciones_evaluaciones.completion_certificates (
+    id SERIAL PRIMARY KEY,
+    customer_project_id INTEGER,
+    final_inspection_id INTEGER,
+    certificate_number VARCHAR(50),
+    completion_date DATE,
+    issued_by_contact_id INTEGER,
+    work_summary TEXT,
+    standards_met JSON,
+    certificate_status VARCHAR(20) DEFAULT 'Draft',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_certificates_project FOREIGN KEY (customer_project_id) REFERENCES base_foundation.customer_projects(id),
+    CONSTRAINT fk_certificates_inspection FOREIGN KEY (final_inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id),
+    CONSTRAINT fk_certificates_issuer FOREIGN KEY (issued_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+```
+
+He identificado la causa de los errores. Como experto en bases de datos, las sugerencias para corregir los errores son las siguientes:
+
+El problema principal es que la tabla `customer_projects` del esquema `base_foundation` no está definida, lo que provoca el error de "relation does not exist" en la tabla `inspecciones_evaluaciones.inspections` que intenta referenciarla. El segundo error con la tabla `inspection_areas` es una consecuencia del primero, ya que no se pudo crear la tabla `inspections` de la cual depende.
+
+-----
+
+### Solución Propuesta
+
+La solución es crear la tabla `customer_projects` en el esquema `base_foundation` antes de intentar crear la tabla `inspections`. A continuación, le propongo el DDL para esta tabla, basado en la estructura y el contexto de los archivos previamente definidos.
+
+#### 1\. Definición de la tabla `customer_projects`
+
+Este DDL debe ser ejecutado en el esquema `base_foundation`.
+
+```sql
+SET search_path TO base_foundation;
+
+CREATE TABLE base_foundation.customer_projects (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    project_name VARCHAR(200) NOT NULL,
+    project_status VARCHAR(30) NOT NULL DEFAULT 'IN_PROGRESS',
+    client_contact_id INTEGER,
+    address VARCHAR(255),
+    city VARCHAR(100),
+    zip_code VARCHAR(20),
+    start_date DATE,
+    end_date DATE,
+    estimated_cost DECIMAL(12, 2),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_customer_projects_organization FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_customer_projects_client FOREIGN KEY (client_contact_id) REFERENCES base_foundation.contacts(id)
+);
+```
+
+#### 2\. Re-ejecución del script para `INSPECCIONES_EVALUACIONES`
+
+Una vez que la tabla `customer_projects` haya sido creada, puede ejecutar el script completo del módulo de `inspecciones_evaluaciones` de la siguiente manera. El script ya está en el orden correcto para manejar las dependencias internas una vez que se resuelva la dependencia externa.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS inspecciones_evaluaciones;
+SET search_path TO inspecciones_evaluaciones;
+
+-- TABLA: IICRC_STANDARDS
+CREATE TABLE inspecciones_evaluaciones.iicrc_standards (
+    id SERIAL PRIMARY KEY,
+    standard_code VARCHAR(10) UNIQUE NOT NULL,
+    standard_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    applicable_damage_types VARCHAR(100),
+    requirements JSON,
+    procedures JSON,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- TABLA: INSPECTION_TYPES
+CREATE TABLE inspecciones_evaluaciones.inspection_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    category VARCHAR(30) NOT NULL,
+    description TEXT,
+    iicrc_standard_id INTEGER,
+    required_fields JSON,
+    optional_fields JSON,
+    requires_equipment_readings BOOLEAN DEFAULT FALSE,
+    requires_moisture_mapping BOOLEAN DEFAULT FALSE,
+    requires_content_inventory BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(name, category),
+    CONSTRAINT fk_inspection_types_standard FOREIGN KEY (iicrc_standard_id) REFERENCES inspecciones_evaluaciones.iicrc_standards(id)
+);
+
+-- TABLA: DAMAGE_TYPES
+CREATE TABLE inspecciones_evaluaciones.damage_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    category VARCHAR(30),
+    description TEXT,
+    severity_scale VARCHAR(50),
+    assessment_criteria JSON,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- TABLA: WATER_DAMAGE_CATEGORIES
+CREATE TABLE inspecciones_evaluaciones.water_damage_categories (
+    id SERIAL PRIMARY KEY,
+    category_name VARCHAR(20) NOT NULL,
+    category_level VARCHAR(10) UNIQUE NOT NULL,
+    description TEXT,
+    source_description VARCHAR(255),
+    safety_requirements JSON,
+    drying_procedures JSON,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- TABLA: EQUIPMENT_TYPES
+CREATE TABLE inspecciones_evaluaciones.equipment_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    category VARCHAR(30) NOT NULL,
+    description TEXT,
+    manufacturer VARCHAR(50),
+    model_number VARCHAR(50),
+    specifications JSON,
+    reading_units VARCHAR(20),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(name, category)
+);
+
+-- TABLA: CONTENT_CATEGORIES
+CREATE TABLE inspecciones_evaluaciones.content_categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    requires_detailed_photos BOOLEAN DEFAULT FALSE,
+    typical_salvage_rate_percent DECIMAL(5,2),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- TABLA: SERVICE_CATEGORIES
+CREATE TABLE inspecciones_evaluaciones.service_categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    category_type VARCHAR(30),
+    description TEXT,
+    typical_duration_days INTEGER,
+    requires_certification BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- TABLA: INSPECTIONS
+CREATE TABLE inspecciones_evaluaciones.inspections (
+    id SERIAL PRIMARY KEY,
+    customer_project_id INTEGER,
+    inspection_type_id INTEGER NOT NULL,
+    iicrc_standard_id INTEGER,
+    inspector_contact_id INTEGER,
+    inspection_status VARCHAR(30) DEFAULT 'Scheduled',
+    inspection_date DATE,
+    start_time TIME,
+    end_time TIME,
+    general_notes TEXT,
+    weather_conditions JSON,
+    safety_concerns VARCHAR(255),
+    requires_follow_up BOOLEAN DEFAULT FALSE,
+    follow_up_date DATE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_inspections_project FOREIGN KEY (customer_project_id) REFERENCES base_foundation.customer_projects(id),
+    CONSTRAINT fk_inspections_type FOREIGN KEY (inspection_type_id) REFERENCES inspecciones_evaluaciones.inspection_types(id),
+    CONSTRAINT fk_inspections_standard FOREIGN KEY (iicrc_standard_id) REFERENCES inspecciones_evaluaciones.iicrc_standards(id),
+    CONSTRAINT fk_inspections_inspector FOREIGN KEY (inspector_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: INSPECTION_AREAS
+CREATE TABLE inspecciones_evaluaciones.inspection_areas (
+    id SERIAL PRIMARY KEY,
+    inspection_id INTEGER NOT NULL,
+    area_name VARCHAR(100),
+    area_type VARCHAR(50),
+    location_description VARCHAR(255),
+    area_measurements JSON,
+    access_restrictions VARCHAR(255),
+    area_notes TEXT,
+    order_sequence INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_inspection_areas_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id)
+);
+
+-- TABLA: DAMAGE_ASSESSMENTS
+CREATE TABLE inspecciones_evaluaciones.damage_assessments (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    damage_type_id INTEGER NOT NULL,
+    severity_level VARCHAR(20),
+    damage_category VARCHAR(10),
+    affected_area_sqft DECIMAL(10,2),
+    damage_description TEXT,
+    cause_of_damage VARCHAR(255),
+    requires_immediate_attention BOOLEAN DEFAULT FALSE,
+    estimated_repair_cost DECIMAL(12,2),
+    damage_measurements JSON,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_damage_assessments_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_damage_assessments_type FOREIGN KEY (damage_type_id) REFERENCES inspecciones_evaluaciones.damage_types(id)
+);
+
+-- TABLA: INSPECTION_PHOTOS
+CREATE TABLE inspecciones_evaluaciones.inspection_photos (
+    id SERIAL PRIMARY KEY,
+    inspection_id INTEGER NOT NULL,
+    inspection_area_id INTEGER,
+    photo_category VARCHAR(30),
+    photo_type VARCHAR(30),
+    file_url VARCHAR(500) NOT NULL,
+    s3_key VARCHAR(500) UNIQUE NOT NULL,
+    description VARCHAR(255),
+    sequence_order INTEGER,
+    gps_coordinates VARCHAR(50),
+    taken_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_inspection_photos_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id),
+    CONSTRAINT fk_inspection_photos_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id)
+);
+
+-- TABLA: INSPECTION_EQUIPMENT
+CREATE TABLE inspecciones_evaluaciones.inspection_equipment (
+    id SERIAL PRIMARY KEY,
+    inspection_id INTEGER NOT NULL,
+    inspection_area_id INTEGER,
+    equipment_type_id INTEGER NOT NULL,
+    equipment_model VARCHAR(100),
+    serial_number VARCHAR(100),
+    installed_at TIMESTAMP,
+    removed_at TIMESTAMP,
+    placement_notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_inspection_equipment_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id),
+    CONSTRAINT fk_inspection_equipment_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_inspection_equipment_type FOREIGN KEY (equipment_type_id) REFERENCES inspecciones_evaluaciones.equipment_types(id)
+);
+
+-- TABLA: EQUIPMENT_READINGS
+CREATE TABLE inspecciones_evaluaciones.equipment_readings (
+    id SERIAL PRIMARY KEY,
+    inspection_equipment_id INTEGER NOT NULL,
+    reading_value DECIMAL(8,2) NOT NULL,
+    reading_unit VARCHAR(10),
+    reading_timestamp TIMESTAMP NOT NULL,
+    taken_by_contact_id INTEGER,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_equipment_readings_equipment FOREIGN KEY (inspection_equipment_id) REFERENCES inspecciones_evaluaciones.inspection_equipment(id),
+    CONSTRAINT fk_equipment_readings_contact FOREIGN KEY (taken_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: MOISTURE_MAPPING_POINTS
+CREATE TABLE inspecciones_evaluaciones.moisture_mapping_points (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    point_identifier VARCHAR(10) NOT NULL,
+    x_coordinate_percent DECIMAL(5,2),
+    y_coordinate_percent DECIMAL(5,2),
+    reference_photo_id INTEGER,
+    material_type VARCHAR(30),
+    location_description VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(inspection_area_id, point_identifier),
+    CONSTRAINT fk_moisture_points_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_moisture_points_photo FOREIGN KEY (reference_photo_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id)
+);
+
+-- TABLA: MOISTURE_READINGS
+CREATE TABLE inspecciones_evaluaciones.moisture_readings (
+    id SERIAL PRIMARY KEY,
+    moisture_point_id INTEGER NOT NULL,
+    inspection_id INTEGER NOT NULL,
+    moisture_content_percent DECIMAL(5,2),
+    temperature_f DECIMAL(5,2),
+    relative_humidity_percent DECIMAL(5,2),
+    reading_date TIMESTAMP NOT NULL,
+    day_number INTEGER,
+    taken_by_contact_id INTEGER,
+    equipment_used VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_moisture_readings_point FOREIGN KEY (moisture_point_id) REFERENCES inspecciones_evaluaciones.moisture_mapping_points(id),
+    CONSTRAINT fk_moisture_readings_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id),
+    CONSTRAINT fk_moisture_readings_contact FOREIGN KEY (taken_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: PSYCHROMETRIC_READINGS
+CREATE TABLE inspecciones_evaluaciones.psychrometric_readings (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    temperature_f DECIMAL(5,2),
+    relative_humidity_percent DECIMAL(5,2),
+    grains_per_pound DECIMAL(6,2),
+    reading_location VARCHAR(20),
+    reading_timestamp TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_psychro_readings_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id)
+);
+
+-- TABLA: CONTENT_INVENTORY_ITEMS
+CREATE TABLE inspecciones_evaluaciones.content_inventory_items (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    content_category_id INTEGER NOT NULL,
+    item_description VARCHAR(255) NOT NULL,
+    estimated_value DECIMAL(10,2),
+    condition_assessment VARCHAR(30),
+    location_found VARCHAR(100),
+    photo_urls JSON,
+    processing_notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_content_items_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_content_items_category FOREIGN KEY (content_category_id) REFERENCES inspecciones_evaluaciones.content_categories(id)
+);
+
+-- TABLA: CONTENT_PROCESSES
+CREATE TABLE inspecciones_evaluaciones.content_processes (
+    id SERIAL PRIMARY KEY,
+    content_item_id INTEGER NOT NULL,
+    process_type VARCHAR(30) NOT NULL,
+    process_status VARCHAR(20) DEFAULT 'Scheduled',
+    assigned_to_contact_id INTEGER,
+    scheduled_date DATE,
+    completed_date DATE,
+    storage_location VARCHAR(100),
+    process_notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_content_processes_item FOREIGN KEY (content_item_id) REFERENCES inspecciones_evaluaciones.content_inventory_items(id),
+    CONSTRAINT fk_content_processes_contact FOREIGN KEY (assigned_to_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: PHOTO_ANNOTATIONS
+CREATE TABLE inspecciones_evaluaciones.photo_annotations (
+    id SERIAL PRIMARY KEY,
+    photo_id INTEGER NOT NULL,
+    annotation_type VARCHAR(20) NOT NULL,
+    x_coordinate_percent DECIMAL(5,2),
+    y_coordinate_percent DECIMAL(5,2),
+    annotation_text VARCHAR(255),
+    annotation_color VARCHAR(7),
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_photo_annotations_photo FOREIGN KEY (photo_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id),
+    CONSTRAINT fk_photo_annotations_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: PHOTO_TAGS
+CREATE TABLE inspecciones_evaluaciones.photo_tags (
+    id SERIAL PRIMARY KEY,
+    photo_id INTEGER NOT NULL,
+    tag_name VARCHAR(50) NOT NULL,
+    tag_category VARCHAR(30),
+    is_common_tag BOOLEAN DEFAULT FALSE,
+    confidence_score DECIMAL(5,2),
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(photo_id, tag_name),
+    CONSTRAINT fk_photo_tags_photo FOREIGN KEY (photo_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id),
+    CONSTRAINT fk_photo_tags_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- TABLA: ROOF_AREAS
+CREATE TABLE inspecciones_evaluaciones.roof_areas (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    roof_section_name VARCHAR(50) NOT NULL,
+    stories_count INTEGER,
+    material_type VARCHAR(30),
+    age_years INTEGER,
+    total_squares DECIMAL(6,2),
+    is_walkable BOOLEAN DEFAULT FALSE,
+    safety_concerns TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(inspection_area_id, roof_section_name),
+    CONSTRAINT fk_roof_areas_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id)
+);
+
+-- TABLA: ROOF_PENETRATIONS
+CREATE TABLE inspecciones_evaluaciones.roof_penetrations (
+    id SERIAL PRIMARY KEY,
+    roof_area_id INTEGER NOT NULL,
+    penetration_type VARCHAR(30),
+    location_description VARCHAR(100),
+    condition_assessment VARCHAR(20),
+    requires_attention BOOLEAN DEFAULT FALSE,
+    photo_reference_id INTEGER,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_roof_penetrations_area FOREIGN KEY (roof_area_id) REFERENCES inspecciones_evaluaciones.roof_areas(id),
+    CONSTRAINT fk_roof_penetrations_photo FOREIGN KEY (photo_reference_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id)
+);
+
+-- TABLA: ROOF_SLOPES
+CREATE TABLE inspecciones_evaluaciones.roof_slopes (
+    id SERIAL PRIMARY KEY,
+    roof_area_id INTEGER NOT NULL,
+    slope_section VARCHAR(30) NOT NULL,
+    pitch_ratio VARCHAR(10),
+    pitch_degrees DECIMAL(5,2),
+    square_footage DECIMAL(8,2),
+    photo_individual_id INTEGER,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(roof_area_id, slope_section),
+    CONSTRAINT fk_roof_slopes_area FOREIGN KEY (roof_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_roof_slopes_photo FOREIGN KEY (photo_individual_id) REFERENCES inspecciones_evaluaciones.inspection_photos(id)
+);
+
+-- TABLA: REQUIRED_SERVICES
+CREATE TABLE inspecciones_evaluaciones.required_services (
+    id SERIAL PRIMARY KEY,
+    inspection_area_id INTEGER NOT NULL,
+    service_category_id INTEGER NOT NULL,
+    priority_level VARCHAR(20),
+    urgency_hours INTEGER,
+    estimated_duration_days INTEGER,
+    service_notes TEXT,
+    requires_pre_approval BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(inspection_area_id, service_category_id),
+    CONSTRAINT fk_required_services_area FOREIGN KEY (inspection_area_id) REFERENCES inspecciones_evaluaciones.inspection_areas(id),
+    CONSTRAINT fk_required_services_category FOREIGN KEY (service_category_id) REFERENCES inspecciones_evaluaciones.service_categories(id)
+);
+
+-- TABLA: COMPLETION_CERTIFICATES
+CREATE TABLE inspecciones_evaluaciones.completion_certificates (
+    id SERIAL PRIMARY KEY,
+    customer_project_id INTEGER,
+    final_inspection_id INTEGER,
+    certificate_number VARCHAR(50),
+    completion_date DATE,
+    issued_by_contact_id INTEGER,
+    work_summary TEXT,
+    standards_met JSON,
+    certificate_status VARCHAR(20) DEFAULT 'Draft',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_certificates_project FOREIGN KEY (customer_project_id) REFERENCES base_foundation.customer_projects(id),
+    CONSTRAINT fk_certificates_inspection FOREIGN KEY (final_inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id),
+    CONSTRAINT fk_certificates_issuer FOREIGN KEY (issued_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+```

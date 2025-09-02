@@ -1,0 +1,787 @@
+M�DULO 5: INSPECCIONES Y EVALUACIONES (33 TABLAS)
+M�dulo: INSPECCIONES Y EVALUACIONES
+
+TABLA 199: INSPECTION_TYPES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(50)) - Nombre del tipo: 'Initial', 'Mitigation', 'Completion Certificate'
+3. category (varchar(30)) - Categor�a: 'INSURANCE', 'CASH', 'MAINTENANCE'
+4. description (text) - Descripci�n detallada del tipo de inspecci�n
+5. iicrc_standard (varchar(20)) - Est�ndar aplicable autom�tico: 'S500', 'S520', 'S100'
+6. required_fields (json) - Campos obligatorios espec�ficos del tipo
+7. optional_fields (json) - Campos opcionales configurables
+8. requires_equipment_readings (boolean, DEFAULT FALSE) - Si requiere lecturas de equipos
+9. requires_moisture_mapping (boolean, DEFAULT FALSE) - Si requiere mapeo de humedad
+10. requires_content_inventory (boolean, DEFAULT FALSE) - Si requiere inventario de contenidos
+11. is_active (boolean, DEFAULT TRUE) - Estado activo/inactivo
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name, category) - Combinaci�n �nica de nombre y categor�a
+Relaciones:
+* Relacionado con INSPECTIONS (1:N)
+* Conectado con IICRC_STANDARDS para auto-aplicaci�n
+�ndices Sugeridos:
+* idx_inspection_types_category
+* idx_inspection_types_active
+
+TABLA 200: IICRC_STANDARDS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. standard_code (varchar(10)) - C�digo del est�ndar: 'S500', 'S520', 'S100'
+3. standard_name (varchar(100)) - Nombre completo del est�ndar
+4. description (text) - Descripci�n detallada del est�ndar
+5. applicable_damage_types (varchar(100)) - Tipos de da�o aplicables
+6. requirements (json) - Requerimientos espec�ficos del est�ndar
+7. procedures (json) - Procedimientos paso a paso
+8. is_active (boolean, DEFAULT TRUE) - Estado activo del est�ndar
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(standard_code) - C�digo �nico por est�ndar
+Relaciones:
+* Usado por INSPECTIONS para auto-aplicaci�n de est�ndares
+* Referenciado por INSPECTION_TYPES
+�ndices Sugeridos:
+* idx_iicrc_standards_code
+* idx_iicrc_standards_active
+
+TABLA 201: INSPECTIONS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto asociado
+3. inspection_type_id (int, FK ? INSPECTION_TYPES) - Tipo de inspecci�n
+4. iicrc_standard_id (int, FK ? IICRC_STANDARDS) - Est�ndar aplicado autom�ticamente
+5. inspector_contact_id (int, FK ? CONTACTS) - Inspector asignado
+6. inspection_status (varchar(30)) - Estado: 'Scheduled', 'In Progress', 'Completed'
+7. inspection_date (date) - Fecha programada/realizada
+8. start_time (time) - Hora de inicio
+9. end_time (time) - Hora de finalizaci�n
+10. general_notes (text) - Notas generales de la inspecci�n
+11. weather_conditions (json) - Condiciones clim�ticas registradas
+12. safety_concerns (varchar(255)) - Preocupaciones de seguridad identificadas
+13. requires_follow_up (boolean, DEFAULT FALSE) - Si requiere seguimiento
+14. follow_up_date (date) - Fecha programada para seguimiento
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a CUSTOMER_PROJECTS
+* Usa INSPECTION_TYPES e IICRC_STANDARDS
+* Contiene m�ltiples INSPECTION_AREAS
+* Genera INSPECTION_PHOTOS y reportes
+�ndices Sugeridos:
+* idx_inspections_project_date
+* idx_inspections_inspector_status
+* idx_inspections_follow_up
+
+TABLA 202: INSPECTION_AREAS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_id (int, FK ? INSPECTIONS) - Inspecci�n padre
+3. area_name (varchar(100)) - Nombre del �rea: 'Living Room', 'Master Bedroom'
+4. area_type (varchar(50)) - Tipo: 'Interior', 'Exterior', 'Roof', 'Basement'
+5. location_description (varchar(255)) - Descripci�n detallada de ubicaci�n
+6. area_measurements (json) - Medidas: length, width, height, square_footage
+7. access_restrictions (varchar(255)) - Restricciones de acceso identificadas
+8. area_notes (text) - Notas espec�ficas del �rea
+9. order_sequence (int) - Orden de inspecci�n en secuencia
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a INSPECTIONS
+* Contiene m�ltiples DAMAGE_ASSESSMENTS
+* Tiene MOISTURE_MAPPING_POINTS asociados
+* Genera INSPECTION_PHOTOS espec�ficas
+�ndices Sugeridos:
+* idx_inspection_areas_inspection_id
+* idx_inspection_areas_type_sequence
+
+TABLA 203: DAMAGE_TYPES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(50)) - Nombre del tipo: 'Water', 'Fire', 'Mold', 'Storm'
+3. category (varchar(30)) - Categor�a: 'Primary', 'Secondary', 'Environmental'
+4. description (text) - Descripci�n detallada del tipo de da�o
+5. severity_scale (varchar(50)) - Escala de severidad aplicable
+6. assessment_criteria (json) - Criterios espec�ficos de evaluaci�n
+7. is_active (boolean, DEFAULT TRUE) - Estado activo del tipo
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name) - Nombre �nico por tipo de da�o
+Relaciones:
+* Usado por DAMAGE_ASSESSMENTS
+* Conectado con categor�as autom�ticas de da�o
+�ndices Sugeridos:
+* idx_damage_types_category
+* idx_damage_types_active
+
+TABLA 204: DAMAGE_ASSESSMENTS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea inspeccionada
+3. damage_type_id (int, FK ? DAMAGE_TYPES) - Tipo de da�o identificado
+4. severity_level (varchar(20)) - Nivel: 'Minor', 'Moderate', 'Major', 'Severe'
+5. damage_category (varchar(10)) - Para agua: 'Cat 1', 'Cat 2', 'Cat 3'
+6. affected_area_sqft (decimal(10,2)) - �rea afectada en pies cuadrados
+7. damage_description (text) - Descripci�n detallada del da�o
+8. cause_of_damage (varchar(255)) - Causa identificada del da�o
+9. requires_immediate_attention (boolean, DEFAULT FALSE) - Requiere atenci�n inmediata
+10. estimated_repair_cost (decimal(12,2)) - Costo estimado de reparaci�n
+11. damage_measurements (json) - Medidas espec�ficas del da�o
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a INSPECTION_AREAS
+* Usa DAMAGE_TYPES para clasificaci�n
+* Genera estimaciones autom�ticas
+�ndices Sugeridos:
+* idx_damage_assessments_area_type
+* idx_damage_assessments_severity
+* idx_damage_assessments_immediate
+
+TABLA 205: WATER_DAMAGE_CATEGORIES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. category_name (varchar(20)) - Nombre: 'Category 1', 'Category 2', 'Category 3'
+3. category_level (varchar(10)) - Nivel: 'Cat 1', 'Cat 2', 'Cat 3'
+4. description (text) - Descripci�n detallada de la categor�a
+5. source_description (varchar(255)) - Descripci�n t�pica de fuentes
+6. safety_requirements (json) - Requerimientos de seguridad espec�ficos
+7. drying_procedures (json) - Procedimientos est�ndar de secado
+8. is_active (boolean, DEFAULT TRUE) - Estado activo de la categor�a
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(category_level) - Nivel �nico por categor�a
+Relaciones:
+* Usado por DAMAGE_ASSESSMENTS para clasificaci�n autom�tica
+* Determina procedimientos espec�ficos
+�ndices Sugeridos:
+* idx_water_damage_categories_level
+* idx_water_damage_categories_active
+
+TABLA 206: EQUIPMENT_TYPES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(50)) - Nombre: 'Dehumidifier', 'Air Mover', 'Moisture Meter'
+3. category (varchar(30)) - Categor�a: 'Drying', 'Monitoring', 'Extraction'
+4. description (text) - Descripci�n del equipo
+5. manufacturer (varchar(50)) - Fabricante t�pico
+6. model_number (varchar(50)) - N�mero de modelo si espec�fico
+7. specifications (json) - Especificaciones t�cnicas
+8. reading_units (varchar(20)) - Unidades de medida: 'GPP', 'CFM', '%RH'
+9. is_active (boolean, DEFAULT TRUE) - Estado activo del tipo
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name, category) - Combinaci�n �nica de nombre y categor�a
+Relaciones:
+* Usado por INSPECTION_EQUIPMENT
+* Conectado con EQUIPMENT_READINGS
+�ndices Sugeridos:
+* idx_equipment_types_category
+* idx_equipment_types_active
+
+TABLA 207: INSPECTION_EQUIPMENT
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_id (int, FK ? INSPECTIONS) - Inspecci�n asociada
+3. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea espec�fica
+4. equipment_type_id (int, FK ? EQUIPMENT_TYPES) - Tipo de equipo
+5. equipment_model (varchar(100)) - Modelo espec�fico del equipo
+6. serial_number (varchar(100)) - N�mero de serie del equipo
+7. installed_at (timestamp) - Fecha/hora de instalaci�n
+8. removed_at (timestamp) - Fecha/hora de remoci�n
+9. placement_notes (text) - Notas sobre ubicaci�n y configuraci�n
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a INSPECTIONS e INSPECTION_AREAS
+* Usa EQUIPMENT_TYPES
+* Genera EQUIPMENT_READINGS
+�ndices Sugeridos:
+* idx_inspection_equipment_area_type
+* idx_inspection_equipment_active
+
+TABLA 208: EQUIPMENT_READINGS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_equipment_id (int, FK ? INSPECTION_EQUIPMENT) - Equipo espec�fico
+3. reading_value (decimal(8,2)) - Valor de la lectura
+4. reading_unit (varchar(10)) - Unidad: 'GPP', 'CFM', '%RH', '�F'
+5. reading_timestamp (timestamp) - Momento exacto de la lectura
+6. taken_by_contact_id (int, FK ? CONTACTS) - T�cnico que tom� la lectura
+7. notes (text) - Notas sobre condiciones o anomal�as
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a INSPECTION_EQUIPMENT
+* Tomada por CONTACTS (t�cnicos)
+�ndices Sugeridos:
+* idx_equipment_readings_equipment_timestamp
+* idx_equipment_readings_technician
+
+TABLA 209: MOISTURE_MAPPING_POINTS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea de la inspecci�n
+3. point_identifier (varchar(10)) - Identificador: 'A1', 'B2', 'C3'
+4. x_coordinate_percent (decimal(5,2)) - Coordenada X como % de la foto
+5. y_coordinate_percent (decimal(5,2)) - Coordenada Y como % de la foto
+6. reference_photo_id (int, FK ? INSPECTION_PHOTOS) - Foto de referencia
+7. material_type (varchar(30)) - Tipo: 'Drywall', 'Wood', 'Concrete'
+8. location_description (varchar(100)) - Descripci�n espec�fica del punto
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(inspection_area_id, point_identifier) - Punto �nico por �rea
+Relaciones:
+* Pertenece a INSPECTION_AREAS
+* Referencia INSPECTION_PHOTOS
+* Contiene m�ltiples MOISTURE_READINGS
+�ndices Sugeridos:
+* idx_moisture_points_area_identifier
+* idx_moisture_points_photo
+
+TABLA 210: MOISTURE_READINGS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. moisture_point_id (int, FK ? MOISTURE_MAPPING_POINTS) - Punto de medici�n
+3. inspection_id (int, FK ? INSPECTIONS) - Inspecci�n asociada
+4. moisture_content_percent (decimal(5,2)) - Porcentaje de humedad
+5. temperature_f (decimal(5,2)) - Temperatura en Fahrenheit
+6. relative_humidity_percent (decimal(5,2)) - Humedad relativa
+7. reading_date (timestamp) - Fecha/hora de la lectura
+8. day_number (int) - D�a del proceso: 1, 2, 3...
+9. taken_by_contact_id (int, FK ? CONTACTS) - T�cnico responsable
+10. equipment_used (varchar(50)) - Equipo utilizado: 'Tramex', 'Protimeter'
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a MOISTURE_MAPPING_POINTS
+* Asociada con INSPECTIONS
+* Tomada por CONTACTS
+�ndices Sugeridos:
+* idx_moisture_readings_point_day
+* idx_moisture_readings_inspection_date
+
+TABLA 211: PSYCHROMETRIC_READINGS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea de medici�n
+3. temperature_f (decimal(5,2)) - Temperatura en Fahrenheit
+4. relative_humidity_percent (decimal(5,2)) - Humedad relativa
+5. grains_per_pound (decimal(6,2)) - GPP (Grains per Pound)
+6. reading_location (varchar(20)) - Ubicaci�n: 'Indoor', 'Outdoor'
+7. reading_timestamp (timestamp) - Momento de la lectura
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a INSPECTION_AREAS
+* Datos para c�lculos psicom�tricos
+�ndices Sugeridos:
+* idx_psychrometric_readings_area_timestamp
+* idx_psychrometric_readings_location
+
+TABLA 212: CONTENT_CATEGORIES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(50)) - Nombre: 'Furniture', 'Electronics', 'Clothing'
+3. description (text) - Descripci�n de la categor�a
+4. requires_detailed_photos (boolean, DEFAULT FALSE) - Si requiere fotos detalladas
+5. typical_salvage_rate_percent (decimal(5,2)) - Tasa t�pica de salvamento
+6. is_active (boolean, DEFAULT TRUE) - Estado activo de la categor�a
+7. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+8. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name) - Nombre �nico por categor�a
+Relaciones:
+* Usado por CONTENT_INVENTORY_ITEMS
+* Define procesos est�ndar de contenido
+�ndices Sugeridos:
+* idx_content_categories_name
+* idx_content_categories_active
+
+TABLA 213: CONTENT_INVENTORY_ITEMS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea donde se encontr�
+3. content_category_id (int, FK ? CONTENT_CATEGORIES) - Categor�a del item
+4. item_description (varchar(255)) - Descripci�n espec�fica del item
+5. estimated_value (decimal(10,2)) - Valor estimado del item
+6. condition_assessment (varchar(30)) - Estado: 'Salvageable', 'Damaged', 'Total Loss'
+7. location_found (varchar(100)) - Ubicaci�n espec�fica donde se encontr�
+8. photo_urls (json) - URLs de fotos del item
+9. processing_notes (text) - Notas sobre procesamiento requerido
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a INSPECTION_AREAS
+* Usa CONTENT_CATEGORIES
+* Genera CONTENT_PROCESSES
+�ndices Sugeridos:
+* idx_content_inventory_area_category
+* idx_content_inventory_condition
+
+TABLA 214: CONTENT_PROCESSES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. content_item_id (int, FK ? CONTENT_INVENTORY_ITEMS) - Item procesado
+3. process_type (varchar(30)) - Tipo: 'Pack Out', 'Clean', 'Dispose', 'Store'
+4. process_status (varchar(20)) - Estado: 'Scheduled', 'In Progress', 'Completed'
+5. assigned_to_contact_id (int, FK ? CONTACTS) - Responsable asignado
+6. scheduled_date (date) - Fecha programada del proceso
+7. completed_date (date) - Fecha de finalizaci�n
+8. storage_location (varchar(100)) - Ubicaci�n de almacenamiento si aplica
+9. process_notes (text) - Notas del proceso realizado
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a CONTENT_INVENTORY_ITEMS
+* Asignado a CONTACTS
+�ndices Sugeridos:
+* idx_content_processes_item_status
+* idx_content_processes_assigned_date
+
+TABLA 215: INSPECTION_PHOTOS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_id (int, FK ? INSPECTIONS) - Inspecci�n asociada
+3. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea espec�fica (opcional)
+4. photo_category (varchar(30)) - Categor�a: 'Overview', 'Damage', 'Equipment'
+5. photo_type (varchar(30)) - Tipo: 'Before', 'During', 'After'
+6. file_url (varchar(500)) - URL del archivo en S3
+7. s3_key (varchar(500)) - Key espec�fica en S3
+8. description (varchar(255)) - Descripci�n de la foto
+9. sequence_order (int) - Orden en secuencia de fotos
+10. gps_coordinates (varchar(50)) - Coordenadas GPS si disponibles
+11. taken_at (timestamp) - Momento cuando se tom� la foto
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(s3_key) - Key �nico en S3
+Relaciones:
+* Pertenece a INSPECTIONS
+* Asociada con INSPECTION_AREAS
+* Referenciada por MOISTURE_MAPPING_POINTS
+�ndices Sugeridos:
+* idx_inspection_photos_inspection_area
+* idx_inspection_photos_category_type
+
+TABLA 216: PHOTO_ANNOTATIONS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. photo_id (int, FK ? INSPECTION_PHOTOS) - Foto anotada
+3. annotation_type (varchar(20)) - Tipo: 'Arrow', 'Circle', 'Text', 'Measurement'
+4. x_coordinate_percent (decimal(5,2)) - Posici�n X como % de la imagen
+5. y_coordinate_percent (decimal(5,2)) - Posici�n Y como % de la imagen
+6. annotation_text (varchar(255)) - Texto de la anotaci�n
+7. annotation_color (varchar(7)) - Color en formato hex: '#FF0000'
+8. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� la anotaci�n
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a INSPECTION_PHOTOS
+* Creada por CONTACTS
+�ndices Sugeridos:
+* idx_photo_annotations_photo_type
+* idx_photo_annotations_creator
+
+TABLA 217: PHOTO_TAGS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. photo_id (int, FK ? INSPECTION_PHOTOS) - Foto etiquetada
+3. tag_name (varchar(50)) - Nombre del tag: 'Water Damage', 'Mold Growth'
+4. tag_category (varchar(30)) - Categor�a: 'Damage Type', 'Equipment', 'Area'
+5. is_common_tag (boolean, DEFAULT FALSE) - Si es tag com�n vs custom
+6. confidence_score (decimal(5,2)) - Score de confianza si AI-generated
+7. created_by_contact_id (int, FK ? CONTACTS) - Quien asign� el tag
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(photo_id, tag_name) - Tag �nico por foto
+Relaciones:
+* Pertenece a INSPECTION_PHOTOS
+* Asignado por CONTACTS
+�ndices Sugeridos:
+* idx_photo_tags_photo_category
+* idx_photo_tags_common
+
+TABLA 218: ROOF_AREAS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea de inspecci�n padre
+3. roof_section_name (varchar(50)) - Nombre: 'Main Roof', 'Garage', 'Addition'
+4. stories_count (int) - N�mero de pisos: 1, 2, 3
+5. material_type (varchar(30)) - Material: 'Asphalt Shingle', 'Tile', 'Metal'
+6. age_years (int) - Edad aproximada en a�os
+7. total_squares (decimal(6,2)) - �rea total en squares (100 sq ft = 1 square)
+8. is_walkable (boolean, DEFAULT FALSE) - Si es caminable para inspecci�n
+9. safety_concerns (text) - Preocupaciones de seguridad espec�ficas
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(inspection_area_id, roof_section_name) - Secci�n �nica por �rea
+Relaciones:
+* Pertenece a INSPECTION_AREAS
+* Contiene ROOF_PENETRATIONS y ROOF_SLOPES
+�ndices Sugeridos:
+* idx_roof_areas_area_section
+* idx_roof_areas_material
+
+TABLA 219: ROOF_PENETRATIONS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. roof_area_id (int, FK ? ROOF_AREAS) - �rea del techo
+3. penetration_type (varchar(30)) - Tipo: 'Chimney', 'Vent', 'Skylight', 'Pipe'
+4. location_description (varchar(100)) - Descripci�n de ubicaci�n
+5. condition_assessment (varchar(20)) - Estado: 'Good', 'Fair', 'Poor'
+6. requires_attention (boolean, DEFAULT FALSE) - Si requiere atenci�n
+7. photo_reference_id (int, FK ? INSPECTION_PHOTOS) - Foto espec�fica
+8. notes (text) - Notas sobre la penetraci�n
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a ROOF_AREAS
+* Puede referenciar INSPECTION_PHOTOS
+�ndices Sugeridos:
+* idx_roof_penetrations_area_type
+* idx_roof_penetrations_condition
+
+TABLA 220: ROOF_SLOPES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. roof_area_id (int, FK ? ROOF_AREAS) - �rea del techo
+3. slope_section (varchar(30)) - Secci�n: 'North Face', 'South Face', 'East Face'
+4. pitch_ratio (varchar(10)) - Inclinaci�n: '4/12', '6/12', '8/12'
+5. pitch_degrees (decimal(5,2)) - Inclinaci�n en grados
+6. square_footage (decimal(8,2)) - �rea de esta secci�n espec�fica
+7. photo_individual_id (int, FK ? INSPECTION_PHOTOS) - Foto individual de la secci�n
+8. notes (text) - Notas espec�ficas de la secci�n
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(roof_area_id, slope_section) - Secci�n �nica por �rea
+Relaciones:
+* Pertenece a ROOF_AREAS
+* Tiene foto individual en INSPECTION_PHOTOS
+�ndices Sugeridos:
+* idx_roof_slopes_area_section
+* idx_roof_slopes_pitch
+
+TABLA 221: SERVICE_CATEGORIES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(50)) - Nombre: 'Water Extraction', 'Drying', 'Mold Remediation'
+3. category_type (varchar(30)) - Tipo: 'Emergency', 'Mitigation', 'Restoration'
+4. description (text) - Descripci�n del servicio
+5. typical_duration_days (int) - Duraci�n t�pica en d�as
+6. requires_certification (boolean, DEFAULT FALSE) - Si requiere certificaci�n espec�fica
+7. is_active (boolean, DEFAULT TRUE) - Estado activo del servicio
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name) - Nombre �nico por servicio
+Relaciones:
+* Usado por REQUIRED_SERVICES
+* Define servicios disponibles para proyectos
+�ndices Sugeridos:
+* idx_service_categories_type
+* idx_service_categories_active
+
+TABLA 222: REQUIRED_SERVICES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea que requiere servicio
+3. service_category_id (int, FK ? SERVICE_CATEGORIES) - Servicio requerido
+4. priority_level (varchar(20)) - Prioridad: 'Emergency', 'High', 'Medium', 'Low'
+5. urgency_hours (int) - Urgencia en horas para comenzar
+6. estimated_duration_days (int) - Duraci�n estimada en d�as
+7. service_notes (text) - Notas espec�ficas del servicio requerido
+8. requires_pre_approval (boolean, DEFAULT FALSE) - Si requiere pre-aprobaci�n
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(inspection_area_id, service_category_id) - Servicio �nico por �rea
+Relaciones:
+* Pertenece a INSPECTION_AREAS
+* Usa SERVICE_CATEGORIES
+* No incluye costos (pre-estimate)
+�ndices Sugeridos:
+* idx_required_services_area_priority
+* idx_required_services_urgency
+
+TABLA 223: COMPLETION_CERTIFICATES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto completado
+3. final_inspection_id (int, FK ? INSPECTIONS) - Inspecci�n final
+4. certificate_number (varchar(50)) - N�mero �nico del certificado
+5. completion_date (date) - Fecha de finalizaci�n del trabajo
+6. issued_by_contact_id (int, FK ? CONTACTS) - Quien emite el certificado
+7. work_summary (text) - Resumen del trabajo realizado
+8. standards_met (json) - Est�ndares cumplidos (IICRC, etc.)
+9. certificate_status (varchar(20)) - Estado: 'Draft', 'Issued', 'Revised'
+10. pdf_url (varchar(500)) - URL del certificado en PDF
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(certificate_number) - N�mero �nico de certificado
+Relaciones:
+* Pertenece a CUSTOMER_PROJECTS
+* Referencias INSPECTIONS final
+* Emitido por CONTACTS
+�ndices Sugeridos:
+* idx_completion_certificates_project
+* idx_completion_certificates_number
+
+TABLA 224: BEFORE_AFTER_COMPARISONS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. completion_certificate_id (int, FK ? COMPLETION_CERTIFICATES) - Certificado asociado
+3. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea comparada
+4. before_photo_url (varchar(500)) - Foto de inspecci�n inicial
+5. after_photo_url (varchar(500)) - Foto de estado final
+6. comparison_notes (text) - Notas sobre la comparaci�n
+7. work_completed_description (text) - Descripci�n del trabajo realizado
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(completion_certificate_id, inspection_area_id) - Comparaci�n �nica por �rea
+Relaciones:
+* Pertenece a COMPLETION_CERTIFICATES
+* Asociada con INSPECTION_AREAS
+�ndices Sugeridos:
+* idx_before_after_certificate_area
+* idx_before_after_certificate
+
+TABLA 225: SUPPLEMENTAL_ITEMS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. completion_certificate_id (int, FK ? COMPLETION_CERTIFICATES) - Certificado asociado
+3. estimate_id (int, FK ? ESTIMATES) - Estimado conectado directamente
+4. work_order_id (int) - FK para futuro m�dulo de work orders
+5. supplement_type (varchar(30)) - Tipo: 'Change Order', 'Field Discovery'
+6. item_description (text) - Descripci�n del item adicional
+7. justification_note (text) - Justificaci�n requerida siempre
+8. estimated_cost (decimal(10,2)) - Costo estimado del item
+9. approval_status (varchar(20)) - Estado: 'Pending', 'Approved', 'Denied'
+10. discovered_by_contact_id (int, FK ? CONTACTS) - Project Manager que descubri�
+11. auto_added_to_estimate (boolean, DEFAULT FALSE) - Si se agreg� autom�ticamente
+12. discovered_date (date) - Fecha de descubrimiento
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a COMPLETION_CERTIFICATES
+* Conectado con ESTIMATES
+* Descubierto por CONTACTS
+�ndices Sugeridos:
+* idx_supplemental_items_certificate_status
+* idx_supplemental_items_discoverer_date
+
+TABLA 226: COMPLETION_CERTIFICATE_PHOTOS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. completion_certificate_id (int, FK ? COMPLETION_CERTIFICATES) - Certificado asociado
+3. inspection_area_id (int, FK ? INSPECTION_AREAS) - �rea espec�fica (opcional)
+4. photo_type (varchar(30)) - Tipo: 'Final_Result', 'Detail_Work'
+5. photo_category (varchar(20)) - Categor�a: 'After', 'During_Work'
+6. file_url (varchar(500)) - URL del archivo en S3
+7. s3_key (varchar(500)) - Key espec�fica en S3
+8. description (text) - Descripci�n de la foto
+9. sequence_order (int) - Orden en la secuencia
+10. is_primary_after_photo (boolean, DEFAULT FALSE) - Si es foto principal "after"
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(s3_key) - Key �nico en S3
+Relaciones:
+* Pertenece a COMPLETION_CERTIFICATES
+* Asociada con INSPECTION_AREAS
+�ndices Sugeridos:
+* idx_completion_photos_certificate_type
+* idx_completion_photos_primary
+
+TABLA 227: INSPECTION_SIGNATURES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_id (int, FK ? INSPECTIONS) - Inspecci�n firmada
+3. signer_name (varchar(100)) - Nombre de quien firma
+4. signer_role (varchar(30)) - Rol: 'Inspector', 'Customer', 'Adjuster'
+5. signature_image_url (varchar(500)) - URL de la imagen de firma
+6. signed_at (timestamp) - Momento de la firma
+7. signature_type (varchar(20)) - Tipo: 'Digital', 'Physical'
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(inspection_id, signer_role) - Una firma por rol por inspecci�n
+Relaciones:
+* Pertenece a INSPECTIONS
+* Validaci�n legal de inspecciones
+�ndices Sugeridos:
+* idx_inspection_signatures_inspection_role
+* idx_inspection_signatures_signed_date
+
+TABLA 228: INSPECTION_REPORT_TEMPLATES
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_type_id (int, FK ? INSPECTION_TYPES) - Tipo de inspecci�n
+3. template_name (varchar(100)) - Nombre del template
+4. html_template (text) - Template HTML completo para reporte
+5. report_sections (varchar(500)) - Array JSON de secciones
+6. is_default (boolean, DEFAULT FALSE) - Si es template por defecto
+7. is_active (boolean, DEFAULT TRUE) - Estado activo del template
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(inspection_type_id, template_name) - Template �nico por tipo
+Relaciones:
+* Asociado con INSPECTION_TYPES
+* Genera reportes autom�ticos
+�ndices Sugeridos:
+* idx_report_templates_type_default
+* idx_report_templates_active
+
+
+TABLA 229: DAILY_EQUIPMENT_LOGS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_equipment_id (int, FK ? INSPECTION_EQUIPMENT) - Equipo monitoreado
+3. log_date (date) - Fecha del log diario
+4. morning_reading (decimal(8,2)) - Lectura matutina
+5. afternoon_reading (decimal(8,2)) - Lectura vespertina
+6. evening_reading (decimal(8,2)) - Lectura nocturna
+7. daily_average (decimal(8,2)) - Promedio calculado del d�a
+8. equipment_status (varchar(20)) - Estado: 'Operating', 'Maintenance', 'Down'
+9. technician_notes (text) - Notas del t�cnico sobre el d�a
+10. logged_by_contact_id (int, FK ? CONTACTS) - T�cnico responsable del log
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(inspection_equipment_id, log_date) - Un log por equipo por d�a
+Relaciones:
+* Pertenece a INSPECTION_EQUIPMENT
+* Registrado por CONTACTS
+�ndices Sugeridos:
+* idx_daily_equipment_logs_equipment_date
+* idx_daily_equipment_logs_technician
+
+TABLA 230: AFFECTED_MATERIALS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. damage_assessment_id (int, FK ? DAMAGE_ASSESSMENTS) - Evaluaci�n de da�o asociada
+3. material_type (varchar(50)) - Tipo: 'Drywall', 'Hardwood', 'Carpet', 'Insulation'
+4. material_location (varchar(100)) - Ubicaci�n espec�fica del material
+5. affected_area_sqft (decimal(10,2)) - �rea afectada en pies cuadrados
+6. damage_severity (varchar(20)) - Severidad: 'Light', 'Moderate', 'Heavy', 'Total'
+7. salvage_assessment (varchar(20)) - Evaluaci�n: 'Salvageable', 'Damaged', 'Loss'
+8. removal_required (boolean, DEFAULT FALSE) - Si requiere remoci�n
+9. replacement_material (varchar(50)) - Material de reemplazo recomendado
+10. estimated_cost (decimal(10,2)) - Costo estimado de reparaci�n/reemplazo
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica requerida
+Relaciones:
+* Pertenece a DAMAGE_ASSESSMENTS
+* Base para estimaciones de costos
+�ndices Sugeridos:
+* idx_affected_materials_assessment_type
+* idx_affected_materials_severity
+
+TABLA 231: INSPECTION_WEATHER_CONDITIONS
+M�dulo: INSPECCIONES Y EVALUACIONES
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. inspection_id (int, FK ? INSPECTIONS) - Inspecci�n asociada
+3. weather_date (date) - Fecha de las condiciones
+4. temperature_f (decimal(5,2)) - Temperatura exterior en Fahrenheit
+5. humidity_percent (decimal(5,2)) - Humedad relativa exterior
+6. barometric_pressure (decimal(6,2)) - Presi�n barom�trica
+7. wind_speed_mph (decimal(5,2)) - Velocidad del viento en MPH
+8. precipitation (varchar(20)) - Precipitaci�n: 'None', 'Light', 'Moderate', 'Heavy'
+9. weather_conditions (varchar(50)) - Condiciones: 'Clear', 'Cloudy', 'Rainy', 'Stormy'
+10. impact_on_work (text) - Impacto en el trabajo de inspecci�n
+11. recorded_at (timestamp) - Momento del registro
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(inspection_id, weather_date) - Condiciones �nicas por inspecci�n por d�a
+Relaciones:
+* Pertenece a INSPECTIONS
+* Datos para an�lisis de condiciones
+�ndices Sugeridos:
+* idx_inspection_weather_inspection_date
+* idx_inspection_weather_conditions
+
+Este m�dulo de INSPECCIONES Y EVALUACIONES est� dise�ado espec�ficamente para industrias de construcci�n y restoration, con enfoque en:
+* Est�ndares IICRC autom�ticos (S500, S520) seg�n tipo de da�o
+* Categor�as de da�o por agua autom�ticas (Cat 1-3)
+* Equipment tracking completo con lecturas diarias
+* Moisture mapping con coordenadas en fotos
+* Content inventory con procesos de pack-out
+* Roof inspections especializadas con penetraciones y slopes
+* Completion certificates con before/after comparisons
+* Integration con estimates para supplemental items
+Casos de uso cr�ticos cubiertos:
+* Initial inspection ? Damage assessment ? Equipment placement ? Daily monitoring ? Completion certificate
+* Insurance claims con documentaci�n completa IICRC
+* Roof inspections especializadas para roofing companies
+* Content inventory para restoration projects

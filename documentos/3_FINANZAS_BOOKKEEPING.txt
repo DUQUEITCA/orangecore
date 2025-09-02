@@ -1,0 +1,2008 @@
+M�DULO 3: FINANZAS & BOOKKEEPING (63 TABLAS)
+M�dulo: FINANZAS & BOOKKEEPING
+Este es el sistema financiero enterprise-grade del SaaS de construcci�n, incluyendo banking automatizado con Plaid, AI categorization, wallets virtuales, P&L automation, compliance, y bookkeeping completo para industrias de construcci�n y home improvement.
+
+3.1 CORE BANKING (5 tablas)
+TABLA 106: BANK_ACCOUNTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria de la cuenta
+3. account_name (varchar(100)) - Nombre descriptivo "Wells Fargo Business Checking"
+4. account_type (varchar(30)) - CHECKING, SAVINGS, CREDIT_LINE, BUSINESS_CREDIT
+5. bank_name (varchar(100)) - Nombre del banco o instituci�n financiera
+6. account_number (varchar(50)) - N�mero de cuenta (encriptado)
+7. routing_number (varchar(20)) - N�mero de routing del banco
+8. plaid_account_id (varchar(100)) - ID �nico de Plaid para sincronizaci�n autom�tica
+9. plaid_access_token (varchar(255)) - Token de acceso Plaid (encriptado)
+10. current_balance (decimal(12,2)) - Balance actual en tiempo real
+11. available_balance (decimal(12,2)) - Balance disponible (considerando holds)
+12. last_sync_date (timestamp) - �ltima sincronizaci�n con Plaid API
+13. auto_sync_enabled (boolean, DEFAULT TRUE) - Sincronizaci�n autom�tica activada
+14. is_primary (boolean, DEFAULT FALSE) - Cuenta bancaria principal
+15. is_active (boolean, DEFAULT TRUE) - Cuenta activa para operaciones
+16. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+17. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(plaid_account_id) - Un account ID de Plaid es �nico
+* UNIQUE(organization_id, account_number) - Una cuenta no puede duplicarse por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para multi-tenant isolation
+* Fuente de BANK_TRANSACTIONS para todos los movimientos bancarios
+* Usado en CHECK_REGISTER para emisi�n de cheques
+* Referenciado en FINANCIAL_RECONCILIATION para reconciliaciones mensuales
+�ndices Sugeridos:
+* idx_bank_accounts_org_active (organization_id, is_active)
+* idx_bank_accounts_plaid (plaid_account_id)
+
+TABLA 107: BANK_TRANSACTIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bank_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta bancaria de origen
+3. plaid_transaction_id (varchar(100)) - ID �nico de transacci�n en Plaid
+4. transaction_date (date) - Fecha de la transacci�n
+5. post_date (date) - Fecha de posting en el banco
+6. amount (decimal(12,2)) - Monto de transacci�n (negativo para d�bitos)
+7. description (varchar(300)) - Descripci�n original del banco
+8. merchant_name (varchar(100)) - Nombre del comerciante si aplica
+9. category_primary (varchar(50)) - Categor�a primaria Plaid
+10. category_detailed (varchar(100)) - Categor�a detallada Plaid
+11. account_owner (varchar(100)) - Propietario de la cuenta transacci�n
+12. pending (boolean, DEFAULT FALSE) - Transacci�n pendiente de clearing
+13. check_number (varchar(20)) - N�mero de cheque si aplica
+14. irs_category_id (int, FK ? IRS_CATEGORIES) - Categor�a IRS asignada
+15. ai_categorized (boolean, DEFAULT FALSE) - Categorizada por AI
+16. categorization_confidence (decimal(5,2)) - Confianza AI categorization (0-100)
+17. wallet_id (int, FK ? VIRTUAL_WALLETS) - Wallet asignado si aplica
+18. project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto asignado si aplica
+19. reconciled (boolean, DEFAULT FALSE) - Reconciliado en statement
+20. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+21. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(plaid_transaction_id) - ID Plaid �nico globalmente
+* UNIQUE(bank_account_id, check_number) WHERE check_number IS NOT NULL
+Relaciones:
+* Conecta con BANK_ACCOUNTS como fuente principal
+* Usa IRS_CATEGORIES para clasificaci�n tributaria
+* Puede asignarse a VIRTUAL_WALLETS para organizaci�n interna
+* Puede linkarse a CUSTOMER_PROJECTS para tracking por proyecto
+* Fuente para TRANSACTION_SPLITS cuando se divide en m�ltiples categor�as
+�ndices Sugeridos:
+* idx_bank_transactions_account_date (bank_account_id, transaction_date)
+* idx_bank_transactions_reconciled (reconciled, transaction_date)
+* idx_bank_transactions_plaid (plaid_transaction_id)
+
+TABLA 108: TRANSACTION_SPLITS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. parent_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n bancaria original
+3. split_amount (decimal(12,2)) - Monto de este split espec�fico
+4. split_description (varchar(300)) - Descripci�n espec�fica del split
+5. irs_category_id (int, FK ? IRS_CATEGORIES) - Categor�a IRS del split
+6. assigned_to_contact_id (int, FK ? CONTACTS) - Empleado asignado para gastos
+7. assigned_to_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto asignado
+8. wallet_id (int, FK ? VIRTUAL_WALLETS) - Wallet para el split
+9. split_percentage (decimal(5,2)) - Porcentaje del total (para validaci�n)
+10. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el split
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+12. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* Constraint: SUM de split_amount debe igualar parent transaction amount
+* Check: split_percentage entre 0 y 100
+Relaciones:
+* Child de BANK_TRANSACTIONS para transacciones complejas
+* Usa IRS_CATEGORIES para clasificaci�n tributaria detallada
+* Puede asignarse a empleados espec�ficos en CONTACTS
+* Puede linkarse a proyectos espec�ficos para cost tracking
+�ndices Sugeridos:
+* idx_transaction_splits_parent (parent_transaction_id)
+* idx_transaction_splits_project (assigned_to_project_id)
+
+TABLA 109: CASH_ACCOUNTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. account_name (varchar(100)) - Nombre descriptivo "Petty Cash", "Job Site Cash"
+4. current_balance (decimal(10,2)) - Balance actual de efectivo
+5. location (varchar(100)) - Ubicaci�n f�sica "Main Office", "Truck #1"
+6. responsible_contact_id (int, FK ? CONTACTS) - Empleado responsable
+7. is_active (boolean, DEFAULT TRUE) - Cuenta activa
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+9. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, account_name) - Nombre �nico por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para multi-tenant isolation
+* Responsable asignado en CONTACTS
+* Usado para tracking de efectivo en job sites
+�ndices Sugeridos:
+* idx_cash_accounts_org_active (organization_id, is_active)
+
+TABLA 110: CHECK_REGISTER
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bank_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta bancaria emisora
+3. check_number (varchar(20)) - N�mero secuencial del cheque
+4. payee_name (varchar(100)) - Nombre del beneficiario
+5. payee_contact_id (int, FK ? CONTACTS) - Contacto beneficiario si est� en sistema
+6. amount (decimal(10,2)) - Monto del cheque
+7. memo (varchar(200)) - Memo o concepto del cheque
+8. issue_date (date) - Fecha de emisi�n del cheque
+9. cleared_date (date) - Fecha de clearing en el banco
+10. status (varchar(20)) - ISSUED, CLEARED, VOID, OUTSTANDING
+11. wallet_id (int, FK ? VIRTUAL_WALLETS) - Wallet de origen del gasto
+12. related_invoice_id (int, FK ? INVOICES) - Invoice relacionada si aplica
+13. issued_by_contact_id (int, FK ? CONTACTS) - Empleado que emiti� el cheque
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+15. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(bank_account_id, check_number) - N�mero �nico por cuenta
+Relaciones:
+* Conecta con BANK_ACCOUNTS para la cuenta emisora
+* Puede linkear con CONTACTS para beneficiarios conocidos
+* Conecta con VIRTUAL_WALLETS para tracking interno
+* Puede linkear con INVOICES para pagos de facturas
+�ndices Sugeridos:
+* idx_check_register_account_status (bank_account_id, status)
+* idx_check_register_payee (payee_contact_id)
+
+3.2 CATEGORIZATION & IRS (4 tablas)
+TABLA 111: IRS_CATEGORIES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. category_code (varchar(20)) - C�digo IRS "FORM_1120_L12", "SCHEDULE_C_L8"
+3. category_name (varchar(100)) - Nombre descriptivo "Advertising", "Vehicle Expenses"
+4. irs_form_line (varchar(50)) - L�nea espec�fica en formulario IRS
+5. description (text) - Descripci�n detallada de qu� incluye la categor�a
+6. is_deductible (boolean, DEFAULT TRUE) - Deducible fiscalmente
+7. requires_documentation (boolean, DEFAULT FALSE) - Requiere documentaci�n especial
+8. is_active (boolean, DEFAULT TRUE) - Categor�a activa para uso
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+10. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(category_code) - C�digo IRS �nico
+Relaciones:
+* Usado en BANK_TRANSACTIONS para categorizaci�n autom�tica
+* Usado en TRANSACTION_SPLITS para categorizaci�n detallada
+* Usado en AI_CATEGORIZATION_LOG para machine learning
+�ndices Sugeridos:
+* idx_irs_categories_active (is_active)
+* idx_irs_categories_deductible (is_deductible)
+
+TABLA 112: TRANSACTION_CATEGORIES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Categor�as custom por organizaci�n
+3. category_name (varchar(100)) - Nombre de categor�a custom
+4. parent_category_id (int, FK ? TRANSACTION_CATEGORIES) - Para jerarqu�a de categor�as
+5. irs_category_id (int, FK ? IRS_CATEGORIES) - Mapeo a categor�a IRS
+6. icon_name (varchar(50)) - Icono para UI
+7. color (varchar(7)) - Color hex para visual identification
+8. is_expense (boolean, DEFAULT TRUE) - Categor�a de gasto vs ingreso
+9. is_active (boolean, DEFAULT TRUE) - Categor�a activa
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+11. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, category_name) - Nombre �nico por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para customizaci�n por empresa
+* Self-referencing para jerarqu�a de categor�as
+* Mapea a IRS_CATEGORIES para compliance
+�ndices Sugeridos:
+* idx_transaction_categories_org_active (organization_id, is_active)
+* idx_transaction_categories_parent (parent_category_id)
+
+TABLA 113: UNCATEGORIZED_TRANSACTIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n sin categorizar
+3. suggested_category_id (int, FK ? IRS_CATEGORIES) - Sugerencia AI de categor�a
+4. confidence_score (decimal(5,2)) - Confianza de la sugerencia AI (0-100)
+5. requires_attention (boolean, DEFAULT TRUE) - Necesita revisi�n manual
+6. reviewed_by_contact_id (int, FK ? CONTACTS) - Empleado que revis�
+7. reviewed_at (timestamp) - Fecha de revisi�n
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+9. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(bank_transaction_id) - Una transacci�n solo aparece una vez aqu�
+Relaciones:
+* Conecta con BANK_TRANSACTIONS para transacciones pendientes
+* Sugiere IRS_CATEGORIES basado en AI
+* Tracking de revisi�n por CONTACTS
+�ndices Sugeridos:
+* idx_uncategorized_requires_attention (requires_attention)
+* idx_uncategorized_confidence (confidence_score)
+
+TABLA 114: AI_CATEGORIZATION_LOG
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n categorizada
+3. ai_model_version (varchar(50)) - Versi�n del modelo AI usado
+4. prediction_confidence (decimal(5,2)) - Confianza de la predicci�n AI
+5. predicted_category_id (int, FK ? IRS_CATEGORIES) - Categor�a predicha por AI
+6. actual_category_id (int, FK ? IRS_CATEGORIES) - Categor�a real asignada
+7. prediction_correct (boolean) - Si la predicci�n fue correcta
+8. features_used (json) - Features utilizados para la predicci�n
+9. processing_time_ms (int) - Tiempo de procesamiento en milisegundos
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Permite m�ltiples intentos de categorizaci�n
+Relaciones:
+* Conecta con BANK_TRANSACTIONS para tracking de performance
+* Usa IRS_CATEGORIES para predicciones y resultados reales
+* Data source para mejorar modelos de machine learning
+�ndices Sugeridos:
+* idx_ai_categorization_accuracy (prediction_correct, created_at)
+* idx_ai_categorization_model (ai_model_version)
+
+3.3 VIRTUAL WALLETS (4 tablas)
+TABLA 115: WALLET_TYPES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. type_name (varchar(50)) - Nombre del tipo "Project Expenses", "Employee Commissions"
+3. description (text) - Descripci�n del prop�sito del wallet type
+4. default_rules (json) - Reglas default para wallets de este tipo
+5. icon_name (varchar(50)) - Icono para representaci�n visual
+6. is_system_type (boolean, DEFAULT FALSE) - Tipo de sistema vs custom
+7. is_active (boolean, DEFAULT TRUE) - Tipo activo para uso
+8. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+9. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(type_name) - Nombre �nico de tipo
+Relaciones:
+* Usado por VIRTUAL_WALLETS para clasificaci�n
+* Template para configuraci�n de nuevos wallets
+�ndices Sugeridos:
+* idx_wallet_types_active (is_active)
+
+TABLA 116: VIRTUAL_WALLETS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. wallet_type_id (int, FK ? WALLET_TYPES) - Tipo de wallet
+4. wallet_name (varchar(100)) - Nombre descriptivo del wallet
+5. description (text) - Descripci�n del prop�sito espec�fico
+6. current_balance (decimal(12,2)) - Balance actual del wallet
+7. allocated_budget (decimal(12,2)) - Presupuesto asignado si aplica
+8. responsible_contact_id (int, FK ? CONTACTS) - Responsable del wallet
+9. project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto asociado si aplica
+10. is_active (boolean, DEFAULT TRUE) - Wallet activo
+11. auto_allocate_rules (json) - Reglas para asignaci�n autom�tica
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+13. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, wallet_name) - Nombre �nico por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para multi-tenant isolation
+* Usa WALLET_TYPES para clasificaci�n
+* Responsable asignado en CONTACTS
+* Puede asociarse a CUSTOMER_PROJECTS espec�ficos
+�ndices Sugeridos:
+* idx_virtual_wallets_org_active (organization_id, is_active)
+* idx_virtual_wallets_project (project_id)
+
+TABLA 117: WALLET_TRANSACTIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. wallet_id (int, FK ? VIRTUAL_WALLETS) - Wallet afectado
+3. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n bancaria fuente
+4. amount (decimal(12,2)) - Monto (negativo para d�bitos, positivo para cr�ditos)
+5. transaction_type (varchar(20)) - CREDIT, DEBIT, TRANSFER
+6. description (varchar(300)) - Descripci�n de la transacci�n
+7. reference_type (varchar(30)) - INVOICE, EXPENSE, COMMISSION, ALLOCATION
+8. reference_id (int) - ID del registro relacionado
+9. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� la transacci�n
+10. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Permite m�ltiples transacciones
+Relaciones:
+* Conecta con VIRTUAL_WALLETS como destinatario
+* Conecta con BANK_TRANSACTIONS como fuente de fondos
+* Tracking de creaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_wallet_transactions_wallet_date (wallet_id, created_at)
+* idx_wallet_transactions_reference (reference_type, reference_id)
+
+TABLA 118: WALLET_BALANCES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. wallet_id (int, FK ? VIRTUAL_WALLETS) - Wallet para el balance
+3. balance_date (date) - Fecha del balance
+4. opening_balance (decimal(12,2)) - Balance de apertura del d�a
+5. total_debits (decimal(12,2)) - Total de d�bitos del d�a
+6. total_credits (decimal(12,2)) - Total de cr�ditos del d�a
+7. closing_balance (decimal(12,2)) - Balance de cierre del d�a
+8. transaction_count (int) - N�mero de transacciones del d�a
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(wallet_id, balance_date) - Un balance por wallet por d�a
+Relaciones:
+* Conecta con VIRTUAL_WALLETS para tracking hist�rico
+* Usado para reportes y auditor�a de movimientos
+�ndices Sugeridos:
+* idx_wallet_balances_wallet_date (wallet_id, balance_date)
+
+3.4 INVOICE PAYMENTS (4 tablas)
+TABLA 119: INVOICE_PAYMENTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. invoice_id (int, FK ? INVOICES) - Factura que se est� pagando
+3. payment_amount (decimal(12,2)) - Monto del pago
+4. payment_date (date) - Fecha del pago
+5. payment_method (varchar(30)) - CHECK, ACH, CREDIT_CARD, CASH, WIRE_TRANSFER
+6. payment_reference (varchar(100)) - N�mero de cheque, confirmation number
+7. bank_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta bancaria receptora
+8. processed_payment_id (int, FK ? PROCESSED_PAYMENTS) - Pago procesado por tarjeta
+9. payment_processor_fee (decimal(8,2)) - Fee del procesador de pagos
+10. net_payment_amount (decimal(12,2)) - Monto neto despu�s de fees
+11. notes (text) - Notas adicionales del pago
+12. processed_by_contact_id (int, FK ? CONTACTS) - Empleado que proces� el pago
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+14. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Una factura puede tener m�ltiples pagos parciales
+Relaciones:
+* Conecta con INVOICES para tracking de pagos
+* Conecta con BANK_ACCOUNTS para dep�sitos
+* Puede conectar con PROCESSED_PAYMENTS para tarjetas de cr�dito
+* Tracking de procesamiento por CONTACTS
+�ndices Sugeridos:
+* idx_invoice_payments_invoice (invoice_id)
+* idx_invoice_payments_date (payment_date)
+
+TABLA 120: PAYMENT_ALLOCATIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. invoice_payment_id (int, FK ? INVOICE_PAYMENTS) - Pago a alocar
+3. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n bancaria asociada
+4. allocated_amount (decimal(12,2)) - Monto alocado a este item
+5. allocation_notes (text) - Notas de la alocaci�n
+6. created_by_contact_id (int, FK ? CONTACTS) - Usuario que hizo la alocaci�n
+7. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Permite m�ltiples alocaciones
+Relaciones:
+* Conecta con INVOICE_PAYMENTS para tracking detallado
+* Conecta con BANK_TRANSACTIONS para conciliaci�n
+* Tracking de creaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_payment_allocations_payment (invoice_payment_id)
+* idx_payment_allocations_transaction (bank_transaction_id)
+
+TABLA 121: PAYMENT_REVERSALS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. original_payment_id (int, FK ? INVOICE_PAYMENTS) - Pago original que se revierte
+3. reversal_amount (decimal(12,2)) - Monto de la reversi�n
+4. reversal_date (date) - Fecha de la reversi�n
+5. reversal_reason (varchar(100)) - NSF_CHECK, CHARGEBACK, CUSTOMER_REQUEST, ERROR
+6. reversal_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n de reversi�n
+7. notes (text) - Notas explicativas de la reversi�n
+8. processed_by_contact_id (int, FK ? CONTACTS) - Empleado que proces� la reversi�n
+9. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Un pago puede tener m�ltiples reversiones
+Relaciones:
+* Conecta con INVOICE_PAYMENTS como origen
+* Conecta con BANK_TRANSACTIONS para la reversi�n
+* Tracking de procesamiento por CONTACTS
+�ndices Sugeridos:
+* idx_payment_reversals_original (original_payment_id)
+* idx_payment_reversals_reason (reversal_reason)
+
+TABLA 122: COMMISSION_CALCULATIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. invoice_id (int, FK ? INVOICES) - Factura base para comisi�n
+3. salesperson_contact_id (int, FK ? CONTACTS) - Vendedor que recibe comisi�n
+4. commission_percentage (decimal(5,2)) - Porcentaje de comisi�n aplicado
+5. commission_amount (decimal(10,2)) - Monto calculado de comisi�n
+6. calculation_base (decimal(12,2)) - Monto base usado para c�lculo
+7. payment_status (varchar(20)) - CALCULATED, PAID, PENDING, CANCELLED
+8. wallet_id (int, FK ? VIRTUAL_WALLETS) - Wallet de comisiones del vendedor
+9. paid_via_check_id (int, FK ? CHECK_REGISTER) - Cheque usado para pago
+10. calculated_at (timestamp) - Fecha de c�lculo de comisi�n
+11. paid_at (timestamp) - Fecha de pago de comisi�n
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(invoice_id, salesperson_contact_id) - Una comisi�n por vendedor por factura
+Relaciones:
+* Conecta con INVOICES como base de c�lculo
+* Conecta con CONTACTS para vendedores
+* Puede conectar con VIRTUAL_WALLETS para acumular comisiones
+* Puede conectar con CHECK_REGISTER para pagos
+�ndices Sugeridos:
+* idx_commission_calculations_salesperson (salesperson_contact_id)
+* idx_commission_calculations_status (payment_status)
+
+3.5 DOCUMENT MANAGEMENT (3 tablas)
+TABLA 123: BANK_STATEMENTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bank_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta bancaria del statement
+3. statement_month (int) - Mes del statement (1-12)
+4. statement_year (int) - A�o del statement
+5. statement_start_date (date) - Fecha inicio del per�odo
+6. statement_end_date (date) - Fecha fin del per�odo
+7. opening_balance (decimal(12,2)) - Balance inicial del statement
+8. closing_balance (decimal(12,2)) - Balance final del statement
+9. total_debits (decimal(12,2)) - Total de d�bitos en el per�odo
+10. total_credits (decimal(12,2)) - Total de cr�ditos en el per�odo
+11. statement_file_url (varchar(300)) - URL del archivo PDF en S3
+12. upload_date (timestamp) - Fecha de carga del statement
+13. reconciled (boolean, DEFAULT FALSE) - Statement reconciliado
+14. uploaded_by_contact_id (int, FK ? CONTACTS) - Usuario que subi� el statement
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+16. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(bank_account_id, statement_month, statement_year) - Un statement por mes por cuenta
+Relaciones:
+* Conecta con BANK_ACCOUNTS para organizaci�n
+* Usado en FINANCIAL_RECONCILIATION para conciliaci�n mensual
+* Tracking de carga por CONTACTS
+�ndices Sugeridos:
+* idx_bank_statements_account_period (bank_account_id, statement_year, statement_month)
+* idx_bank_statements_reconciled (reconciled)
+
+TABLA 124: TRANSACTION_ATTACHMENTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n asociada
+3. attachment_type (varchar(30)) - RECEIPT, INVOICE, CONTRACT, PHOTO, OTHER
+4. file_name (varchar(255)) - Nombre original del archivo
+5. file_url (varchar(300)) - URL del archivo en S3
+6. file_size (int) - Tama�o del archivo en bytes
+7. mime_type (varchar(100)) - Tipo MIME del archivo
+8. description (varchar(300)) - Descripci�n del attachment
+9. extracted_text (text) - Texto extra�do por OCR si aplica
+10. extraction_confidence (decimal(5,2)) - Confianza de extracci�n OCR
+11. uploaded_by_contact_id (int, FK ? CONTACTS) - Usuario que subi� el archivo
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Una transacci�n puede tener m�ltiples attachments
+Relaciones:
+* Conecta con BANK_TRANSACTIONS para documentaci�n
+* Tracking de carga por CONTACTS
+* Usado para compliance y auditor�a
+�ndices Sugeridos:
+* idx_transaction_attachments_transaction (bank_transaction_id)
+* idx_transaction_attachments_type (attachment_type)
+
+TABLA 125: EXPENSE_DOCUMENTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. contact_id (int, FK ? CONTACTS) - Empleado que present� el gasto
+4. expense_category_id (int, FK ? IRS_CATEGORIES) - Categor�a del gasto
+5. expense_amount (decimal(10,2)) - Monto del gasto documentado
+6. expense_date (date) - Fecha del gasto
+7. vendor_name (varchar(100)) - Nombre del proveedor/comerciante
+8. description (varchar(300)) - Descripci�n del gasto
+9. document_type (varchar(30)) - RECEIPT, INVOICE, MILEAGE_LOG, MEAL_RECEIPT
+10. file_url (varchar(300)) - URL del documento en S3
+11. ocr_extracted_data (json) - Datos extra�dos por OCR
+12. approval_status (varchar(20)) - PENDING, APPROVED, REJECTED, NEEDS_INFO
+13. approved_by_contact_id (int, FK ? CONTACTS) - Aprobador del gasto
+14. approved_at (timestamp) - Fecha de aprobaci�n
+15. reimbursement_status (varchar(20)) - PENDING, PAID, NOT_REIMBURSABLE
+16. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n de reembolso
+17. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+18. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Permite m�ltiples documentos de gastos
+Relaciones:
+* Conecta con ORGANIZATIONS para multi-tenant isolation
+* Conecta con CONTACTS para empleado y aprobador
+* Usa IRS_CATEGORIES para clasificaci�n
+* Puede conectar con BANK_TRANSACTIONS para reembolsos
+�ndices Sugeridos:
+* idx_expense_documents_contact_status (contact_id, approval_status)
+* idx_expense_documents_org_date (organization_id, expense_date)
+
+3.6 REPORTING & ANALYTICS (3 tablas)
+TABLA 126: PROJECT_FINANCIALS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto analizado
+3. calculation_date (date) - Fecha del c�lculo financiero
+4. total_invoiced (decimal(12,2)) - Total facturado al cliente
+5. total_received (decimal(12,2)) - Total recibido en pagos
+6. outstanding_receivables (decimal(12,2)) - Cuentas por cobrar pendientes
+7. direct_labor_cost (decimal(12,2)) - Costos directos de mano de obra
+8. materials_cost (decimal(12,2)) - Costos de materiales
+9. equipment_cost (decimal(12,2)) - Costos de equipo y herramientas
+10. subcontractor_cost (decimal(12,2)) - Costos de subcontratistas
+11. other_expenses (decimal(12,2)) - Otros gastos del proyecto
+12. total_expenses (decimal(12,2)) - Total de gastos del proyecto
+13. gross_profit (decimal(12,2)) - Ganancia bruta (ingresos - gastos)
+14. profit_margin_percentage (decimal(5,2)) - Porcentaje de margen de ganancia
+15. total_commissions (decimal(10,2)) - Total de comisiones pagadas
+16. last_calculated_at (timestamp) - �ltima vez que se calcul�
+17. calculated_by_contact_id (int, FK ? CONTACTS) - Usuario que ejecut� el c�lculo
+18. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+19. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(customer_project_id, calculation_date) - Un c�lculo por proyecto por d�a
+Relaciones:
+* Conecta con CUSTOMER_PROJECTS para an�lisis espec�fico
+* Tracking de c�lculo por CONTACTS
+* Usado para dashboards ejecutivos y an�lisis de profitabilidad
+�ndices Sugeridos:
+* idx_project_financials_project_date (customer_project_id, calculation_date)
+* idx_project_financials_profit_margin (profit_margin_percentage)
+
+TABLA 127: FINANCIAL_RECONCILIATION
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bank_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta bancaria reconciliada
+3. reconciliation_month (int) - Mes de reconciliaci�n (1-12)
+4. reconciliation_year (int) - A�o de reconciliaci�n
+5. statement_opening_balance (decimal(12,2)) - Balance inicial del statement
+6. statement_closing_balance (decimal(12,2)) - Balance final del statement
+7. system_opening_balance (decimal(12,2)) - Balance inicial en el sistema
+8. system_closing_balance (decimal(12,2)) - Balance final en el sistema
+9. reconciled_transactions_count (int) - N�mero de transacciones reconciliadas
+10. unreconciled_transactions_count (int) - N�mero de transacciones no reconciliadas
+11. variance_amount (decimal(12,2)) - Diferencia entre statement y sistema
+12. status (varchar(20)) - IN_PROGRESS, COMPLETED, REVIEWED, NEEDS_ATTENTION
+13. reconciled_by_contact_id (int, FK ? CONTACTS) - Usuario que hizo la reconciliaci�n
+14. reconciled_at (timestamp) - Fecha de finalizaci�n de reconciliaci�n
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+16. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(bank_account_id, reconciliation_month, reconciliation_year) - Una reconciliaci�n por mes por cuenta
+Relaciones:
+* Conecta con BANK_ACCOUNTS para la cuenta espec�fica
+* Usa BANK_STATEMENTS para comparaci�n
+* Tracking de reconciliaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_financial_reconciliation_account_period (bank_account_id, reconciliation_year, reconciliation_month)
+* idx_financial_reconciliation_status (status)
+
+TABLA 128: BOOKKEEPING_ENTRIES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. entry_date (date) - Fecha del asiento contable
+4. entry_number (varchar(50)) - N�mero secuencial del asiento
+5. description (varchar(300)) - Descripci�n del asiento contable
+6. reference_type (varchar(30)) - BANK_TRANSACTION, INVOICE, MANUAL_ENTRY, ADJUSTMENT
+7. reference_id (int) - ID del registro de referencia
+8. total_debit (decimal(12,2)) - Total de d�bitos del asiento
+9. total_credit (decimal(12,2)) - Total de cr�ditos del asiento
+10. is_balanced (boolean) - D�bitos igualan cr�ditos (must be TRUE)
+11. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el asiento
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+13. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, entry_number) - N�mero �nico por organizaci�n
+* CHECK(is_balanced = TRUE) - Asientos deben estar balanceados
+Relaciones:
+* Conecta con ORGANIZATIONS para multi-tenant isolation
+* Tracking de creaci�n por CONTACTS
+* Puede referenciar m�ltiples tipos de registros
+�ndices Sugeridos:
+* idx_bookkeeping_entries_org_date (organization_id, entry_date)
+* idx_bookkeeping_entries_reference (reference_type, reference_id)
+
+3.7 COLLECTIONS ENGINE (3 tablas)
+TABLA 129: COLLECTION_WORKFLOWS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. workflow_name (varchar(100)) - Nombre del workflow de cobranza
+4. trigger_days_overdue (int) - D�as de atraso para activar workflow
+5. customer_segment (varchar(50)) - RESIDENTIAL, COMMERCIAL, INSURANCE
+6. escalation_steps (json) - Pasos de escalaci�n configurados
+7. ai_optimization_enabled (boolean, DEFAULT TRUE) - Optimizaci�n AI activada
+8. success_rate (decimal(5,2)) - Tasa de �xito del workflow
+9. average_collection_time (decimal(8,2)) - Tiempo promedio de cobranza en d�as
+10. is_active (boolean, DEFAULT TRUE) - Workflow activo
+11. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el workflow
+12. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+13. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, workflow_name) - Nombre �nico por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para configuraci�n espec�fica
+* Usa escalation_steps como JSON para flexibilidad
+* Tracking de creaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_collection_workflows_org_active (organization_id, is_active)
+* idx_collection_workflows_trigger (trigger_days_overdue)
+
+TABLA 130: COLLECTION_ACTIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. invoice_id (int, FK ? INVOICES) - Factura en proceso de cobranza
+3. collection_workflow_id (int, FK ? COLLECTION_WORKFLOWS) - Workflow aplicado
+4. action_type (varchar(30)) - EMAIL, PHONE_CALL, TEXT_MESSAGE, LEGAL_NOTICE
+5. action_date (timestamp) - Fecha y hora de la acci�n
+6. days_overdue (int) - D�as de atraso cuando se ejecut� la acci�n
+7. action_details (json) - Detalles espec�ficos de la acci�n
+8. response_received (boolean, DEFAULT FALSE) - Cliente respondi�
+9. response_details (text) - Detalles de la respuesta del cliente
+10. next_action_scheduled (timestamp) - Pr�xima acci�n programada
+11. executed_by_contact_id (int, FK ? CONTACTS) - Usuario que ejecut� la acci�n
+12. automated (boolean, DEFAULT FALSE) - Acci�n ejecutada autom�ticamente
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Una factura puede tener m�ltiples acciones
+Relaciones:
+* Conecta con INVOICES para tracking espec�fico
+* Usa COLLECTION_WORKFLOWS como plantilla
+* Tracking de ejecuci�n por CONTACTS
+�ndices Sugeridos:
+* idx_collection_actions_invoice (invoice_id)
+* idx_collection_actions_next_scheduled (next_action_scheduled)
+
+TABLA 131: PAYMENT_PLANS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. invoice_id (int, FK ? INVOICES) - Factura con plan de pagos
+3. customer_contact_id (int, FK ? CONTACTS) - Cliente del plan
+4. total_amount (decimal(12,2)) - Monto total del plan
+5. number_of_payments (int) - N�mero de pagos acordados
+6. payment_frequency (varchar(20)) - WEEKLY, BIWEEKLY, MONTHLY
+7. first_payment_date (date) - Fecha del primer pago
+8. payment_amount (decimal(10,2)) - Monto de cada pago
+9. remaining_balance (decimal(12,2)) - Balance pendiente
+10. status (varchar(20)) - ACTIVE, COMPLETED, DEFAULTED, CANCELLED
+11. late_fee_percentage (decimal(5,2)) - Porcentaje de recargo por atraso
+12. agreement_signed_date (date) - Fecha de firma del acuerdo
+13. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el plan
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+15. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(invoice_id) - Un plan de pagos por factura
+Relaciones:
+* Conecta con INVOICES como base del plan
+* Conecta con CONTACTS para el cliente
+* Tracking de creaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_payment_plans_customer_status (customer_contact_id, status)
+* idx_payment_plans_first_payment (first_payment_date)
+
+3.8 CASH FLOW (3 tablas)
+TABLA 132: CASH_FLOW_FORECASTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. forecast_name (varchar(100)) - Nombre descriptivo del forecast
+4. forecast_period_start (date) - Fecha inicio del per�odo
+5. forecast_period_end (date) - Fecha fin del per�odo
+6. projected_cash_inflows (decimal(12,2)) - Ingresos proyectados
+7. projected_cash_outflows (decimal(12,2)) - Egresos proyectados
+8. net_cash_flow (decimal(12,2)) - Flujo neto proyectado
+9. confidence_level (decimal(5,2)) - Nivel de confianza del forecast (0-100)
+10. based_on_historical_data (boolean, DEFAULT TRUE) - Basado en datos hist�ricos
+11. ai_generated (boolean, DEFAULT FALSE) - Generado por AI
+12. scenario_type (varchar(20)) - CONSERVATIVE, REALISTIC, OPTIMISTIC
+13. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el forecast
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+15. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, forecast_name, forecast_period_start) - Forecast �nico por per�odo
+Relaciones:
+* Conecta con ORGANIZATIONS para an�lisis espec�fico
+* Tracking de creaci�n por CONTACTS
+* Usado para planning financiero y decision making
+�ndices Sugeridos:
+* idx_cash_flow_forecasts_org_period (organization_id, forecast_period_start)
+* idx_cash_flow_forecasts_scenario (scenario_type)
+
+TABLA 133: CASH_FLOW_SCENARIOS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. forecast_id (int, FK ? CASH_FLOW_FORECASTS) - Forecast base
+3. scenario_name (varchar(100)) - Nombre del escenario
+4. scenario_description (text) - Descripci�n detallada del escenario
+5. revenue_adjustment_percentage (decimal(8,2)) - Ajuste de ingresos (+/-)
+6. expense_adjustment_percentage (decimal(8,2)) - Ajuste de gastos (+/-)
+7. adjusted_cash_inflows (decimal(12,2)) - Ingresos ajustados
+8. adjusted_cash_outflows (decimal(12,2)) - Egresos ajustados
+9. adjusted_net_cash_flow (decimal(12,2)) - Flujo neto ajustado
+10. probability_percentage (decimal(5,2)) - Probabilidad del escenario (0-100)
+11. risk_factors (json) - Factores de riesgo identificados
+12. mitigation_strategies (json) - Estrategias de mitigaci�n
+13. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el escenario
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(forecast_id, scenario_name) - Nombre �nico por forecast
+Relaciones:
+* Conecta con CASH_FLOW_FORECASTS como base
+* Tracking de creaci�n por CONTACTS
+* Usado para an�lisis de sensibilidad y planning
+�ndices Sugeridos:
+* idx_cash_flow_scenarios_forecast (forecast_id)
+* idx_cash_flow_scenarios_probability (probability_percentage)
+
+TABLA 134: CASH_FLOW_ALERTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n afectada
+3. alert_type (varchar(30)) - LOW_CASH, NEGATIVE_FLOW, HIGH_OUTFLOWS, FORECAST_VARIANCE
+4. alert_level (varchar(20)) - INFO, WARNING, CRITICAL
+5. alert_message (varchar(500)) - Mensaje descriptivo de la alerta
+6. triggered_date (timestamp) - Fecha cuando se activ� la alerta
+7. threshold_value (decimal(12,2)) - Valor umbral que activ� la alerta
+8. current_value (decimal(12,2)) - Valor actual que caus� la alerta
+9. forecast_id (int, FK ? CASH_FLOW_FORECASTS) - Forecast relacionado si aplica
+10. acknowledged (boolean, DEFAULT FALSE) - Alerta reconocida por usuario
+11. acknowledged_by_contact_id (int, FK ? CONTACTS) - Usuario que reconoci�
+12. acknowledged_at (timestamp) - Fecha de reconocimiento
+13. action_taken (text) - Acciones tomadas en respuesta
+14. auto_resolved (boolean, DEFAULT FALSE) - Alerta resuelta autom�ticamente
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Pueden existir m�ltiples alertas simult�neas
+Relaciones:
+* Conecta con ORGANIZATIONS para targeting espec�fico
+* Puede conectar con CASH_FLOW_FORECASTS si es relevante
+* Tracking de reconocimiento por CONTACTS
+�ndices Sugeridos:
+* idx_cash_flow_alerts_org_level (organization_id, alert_level)
+* idx_cash_flow_alerts_acknowledged (acknowledged, triggered_date)
+
+3.9 MULTI-CURRENCY (4 tablas)
+TABLA 135: CURRENCIES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. currency_code (varchar(3)) - C�digo ISO 4217 (USD, CAD, MXN, EUR)
+3. currency_name (varchar(100)) - Nombre completo "US Dollar", "Canadian Dollar"
+4. currency_symbol (varchar(10)) - S�mbolo de la moneda ($, �, �)
+5. decimal_places (int, DEFAULT 2) - Lugares decimales para la moneda
+6. exchange_rate_to_usd (decimal(10,6)) - Tasa de cambio actual a USD
+7. last_rate_update (timestamp) - �ltima actualizaci�n de tasa
+8. rate_source (varchar(50)) - Fuente de la tasa "FEDERAL_RESERVE", "XE_API"
+9. is_base_currency (boolean, DEFAULT FALSE) - Moneda base de la organizaci�n
+10. is_active (boolean, DEFAULT TRUE) - Moneda activa para uso
+11. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+12. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(currency_code) - C�digo de moneda �nico
+* Solo una moneda puede ser is_base_currency = TRUE por sistema
+Relaciones:
+* Usado en INTER_COMPANY_TRANSACTIONS para conversiones
+* Referenciado en transacciones internacionales
+* Base para CONSOLIDATED_FINANCIALS
+�ndices Sugeridos:
+* idx_currencies_active (is_active)
+* idx_currencies_base (is_base_currency)
+
+TABLA 136: INTER_COMPANY_TRANSACTIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. from_organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n origen
+3. to_organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n destino
+4. transaction_type (varchar(30)) - TRANSFER, LOAN, PAYMENT, ALLOCATION
+5. original_amount (decimal(12,2)) - Monto en moneda original
+6. original_currency_id (int, FK ? CURRENCIES) - Moneda original
+7. converted_amount (decimal(12,2)) - Monto convertido
+8. target_currency_id (int, FK ? CURRENCIES) - Moneda destino
+9. exchange_rate_used (decimal(10,6)) - Tasa de cambio aplicada
+10. transaction_date (date) - Fecha de la transacci�n
+11. reference_number (varchar(100)) - N�mero de referencia
+12. description (varchar(300)) - Descripci�n de la transacci�n
+13. from_bank_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta origen
+14. to_bank_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta destino
+15. status (varchar(20)) - PENDING, COMPLETED, CANCELLED
+16. processed_by_contact_id (int, FK ? CONTACTS) - Usuario que proces�
+17. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+18. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(reference_number) WHERE reference_number IS NOT NULL
+Relaciones:
+* Conecta m�ltiples ORGANIZATIONS para transacciones inter-company
+* Usa CURRENCIES para conversiones de moneda
+* Puede conectar con BANK_ACCOUNTS espec�ficas
+* Tracking de procesamiento por CONTACTS
+�ndices Sugeridos:
+* idx_inter_company_from_to (from_organization_id, to_organization_id)
+* idx_inter_company_date_status (transaction_date, status)
+
+TABLA 137: CONSOLIDATED_FINANCIALS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. parent_organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n matriz
+3. consolidation_period_start (date) - Inicio del per�odo consolidado
+4. consolidation_period_end (date) - Fin del per�odo consolidado
+5. base_currency_id (int, FK ? CURRENCIES) - Moneda base para consolidaci�n
+6. total_revenue_base_currency (decimal(15,2)) - Ingresos totales consolidados
+7. total_expenses_base_currency (decimal(15,2)) - Gastos totales consolidados
+8. net_income_base_currency (decimal(15,2)) - Ingreso neto consolidado
+9. total_assets_base_currency (decimal(15,2)) - Activos totales consolidados
+10. total_liabilities_base_currency (decimal(15,2)) - Pasivos totales consolidados
+11. equity_base_currency (decimal(15,2)) - Patrimonio consolidado
+12. inter_company_eliminations (decimal(12,2)) - Eliminaciones inter-company
+13. exchange_rate_adjustments (decimal(12,2)) - Ajustes por tipo de cambio
+14. consolidation_method (varchar(30)) - FULL, PROPORTIONAL, EQUITY_METHOD
+15. consolidation_date (timestamp) - Fecha de consolidaci�n
+16. consolidated_by_contact_id (int, FK ? CONTACTS) - Usuario que consolid�
+17. status (varchar(20)) - DRAFT, PRELIMINARY, FINAL
+18. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+19. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(parent_organization_id, consolidation_period_start, consolidation_period_end)
+Relaciones:
+* Conecta con ORGANIZATIONS para la matriz
+* Usa CURRENCIES para la moneda base
+* Tracking de consolidaci�n por CONTACTS
+* Usado para reportes financieros consolidados
+�ndices Sugeridos:
+* idx_consolidated_financials_parent_period (parent_organization_id, consolidation_period_start)
+* idx_consolidated_financials_status (status)
+
+TABLA 138: TAX_JURISDICTIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. jurisdiction_name (varchar(100)) - Nombre "United States - Federal", "Florida State"
+3. jurisdiction_type (varchar(20)) - FEDERAL, STATE, LOCAL, INTERNATIONAL
+4. jurisdiction_code (varchar(10)) - C�digo "US-FED", "FL-STATE", "CA-BC"
+5. tax_authority (varchar(100)) - Autoridad tributaria "IRS", "Florida DOR"
+6. tax_year_start_month (int) - Mes inicio a�o fiscal (1-12)
+7. currency_id (int, FK ? CURRENCIES) - Moneda para esta jurisdicci�n
+8. sales_tax_rate (decimal(5,4)) - Tasa de impuesto a las ventas
+9. income_tax_rates (json) - Tasas de impuesto sobre la renta por brackets
+10. filing_requirements (json) - Requerimientos de presentaci�n
+11. due_dates (json) - Fechas de vencimiento por tipo de declaraci�n
+12. is_active (boolean, DEFAULT TRUE) - Jurisdicci�n activa
+13. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+14. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(jurisdiction_code) - C�digo �nico de jurisdicci�n
+Relaciones:
+* Usa CURRENCIES para la moneda local
+* Referenciado en c�lculos de impuestos por ORGANIZATIONS
+* Usado en compliance y reporting
+�ndices Sugeridos:
+* idx_tax_jurisdictions_type_active (jurisdiction_type, is_active)
+* idx_tax_jurisdictions_code (jurisdiction_code)
+
+3.10 BUDGETING (3 tablas)
+TABLA 139: BUDGET_TEMPLATES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. template_name (varchar(100)) - Nombre "Annual Roofing Budget", "Quarterly Restoration"
+3. template_description (text) - Descripci�n del prop�sito del template
+4. industry_type (varchar(50)) - ROOFING, RESTORATION, WINDOWS, HVAC, GENERAL
+5. budget_period_type (varchar(20)) - ANNUAL, QUARTERLY, MONTHLY
+6. revenue_categories (json) - Categor�as de ingresos configuradas
+7. expense_categories (json) - Categor�as de gastos configuradas
+8. kpi_targets (json) - Objetivos de KPIs incluidos
+9. seasonal_adjustments (json) - Ajustes estacionales por per�odo
+10. growth_assumptions (json) - Asunciones de crecimiento incluidas
+11. is_public_template (boolean, DEFAULT FALSE) - Template p�blico del sistema
+12. created_by_organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n creadora
+13. is_active (boolean, DEFAULT TRUE) - Template activo para uso
+14. created_by_contact_id (int, FK ? CONTACTS) - Usuario creador
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+16. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(template_name, created_by_organization_id) WHERE created_by_organization_id IS NOT NULL
+Relaciones:
+* Puede conectar con ORGANIZATIONS como creadora
+* Tracking de creaci�n por CONTACTS
+* Usado por ORGANIZATION_BUDGETS como base
+�ndices Sugeridos:
+* idx_budget_templates_industry_active (industry_type, is_active)
+* idx_budget_templates_public (is_public_template)
+
+TABLA 140: ORGANIZATION_BUDGETS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. budget_template_id (int, FK ? BUDGET_TEMPLATES) - Template base usado
+4. budget_year (int) - A�o del presupuesto
+5. budget_quarter (int) - Trimestre (NULL para presupuestos anuales)
+6. budgeted_insurance_revenue (decimal(12,2)) - Ingresos proyectados por seguros
+7. budgeted_cash_revenue (decimal(12,2)) - Ingresos proyectados en efectivo
+8. budgeted_other_revenue (decimal(12,2)) - Otros ingresos proyectados
+9. total_budgeted_revenue (decimal(12,2)) - Total de ingresos presupuestados
+10. budgeted_labor_costs (decimal(12,2)) - Costos de mano de obra presupuestados
+11. budgeted_materials_costs (decimal(12,2)) - Costos de materiales presupuestados
+12. budgeted_equipment_costs (decimal(12,2)) - Costos de equipo presupuestados
+13. budgeted_overhead_costs (decimal(12,2)) - Costos generales presupuestados
+14. total_budgeted_expenses (decimal(12,2)) - Total de gastos presupuestados
+15. budgeted_gross_profit (decimal(12,2)) - Ganancia bruta presupuestada
+16. budgeted_net_income (decimal(12,2)) - Ingreso neto presupuestado
+17. target_profit_margin (decimal(5,2)) - Margen de ganancia objetivo
+18. status (varchar(20)) - DRAFT, APPROVED, ACTIVE, ARCHIVED
+19. approved_by_contact_id (int, FK ? CONTACTS) - Usuario que aprob�
+20. approved_at (timestamp) - Fecha de aprobaci�n
+21. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+22. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, budget_year, COALESCE(budget_quarter, 0))
+Relaciones:
+* Conecta con ORGANIZATIONS como propietaria
+* Puede usar BUDGET_TEMPLATES como base
+* Tracking de aprobaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_organization_budgets_org_year (organization_id, budget_year)
+* idx_organization_budgets_status (status)
+
+TABLA 141: BUDGET_VARIANCE_ANALYSIS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_budget_id (int, FK ? ORGANIZATION_BUDGETS) - Presupuesto analizado
+3. analysis_period_start (date) - Inicio del per�odo analizado
+4. analysis_period_end (date) - Fin del per�odo analizado
+5. actual_revenue (decimal(12,2)) - Ingresos reales del per�odo
+6. revenue_variance (decimal(12,2)) - Diferencia en ingresos (actual - budgeted)
+7. revenue_variance_percentage (decimal(5,2)) - Porcentaje de variaci�n en ingresos
+8. actual_expenses (decimal(12,2)) - Gastos reales del per�odo
+9. expense_variance (decimal(12,2)) - Diferencia en gastos (actual - budgeted)
+10. expense_variance_percentage (decimal(5,2)) - Porcentaje de variaci�n en gastos
+11. actual_profit_margin (decimal(5,2)) - Margen de ganancia real
+12. profit_margin_variance (decimal(5,2)) - Diferencia en margen de ganancia
+13. significant_variances (json) - Variaciones importantes que requieren atenci�n
+14. variance_explanations (json) - Explicaciones de las variaciones principales
+15. corrective_actions (json) - Acciones correctivas recomendadas
+16. forecast_adjustment (json) - Ajustes recomendados para forecasts futuros
+17. analyzed_by_contact_id (int, FK ? CONTACTS) - Usuario que hizo el an�lisis
+18. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_budget_id, analysis_period_start, analysis_period_end)
+Relaciones:
+* Conecta con ORGANIZATION_BUDGETS como base
+* Tracking de an�lisis por CONTACTS
+* Usado para insights ejecutivos y planning
+�ndices Sugeridos:
+* idx_budget_variance_budget_period (organization_budget_id, analysis_period_start)
+* idx_budget_variance_significant (significant_variances IS NOT NULL)
+
+3.11 EQUIPMENT FINANCE (3 tablas)
+TABLA 142: EQUIPMENT_ASSETS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. asset_name (varchar(100)) - Nombre "Dehumidifier XYZ-123", "Roofing Truck #5"
+4. asset_category (varchar(50)) - RESTORATION_EQUIPMENT, VEHICLES, TOOLS, TECHNOLOGY
+5. asset_subcategory (varchar(50)) - DEHUMIDIFIER, AIR_MOVER, PICKUP_TRUCK
+6. purchase_date (date) - Fecha de compra del activo
+7. purchase_price (decimal(12,2)) - Precio de compra original
+8. financing_amount (decimal(12,2)) - Monto financiado si aplica
+9. down_payment (decimal(12,2)) - Pago inicial realizado
+10. depreciation_method (varchar(20)) - STRAIGHT_LINE, DECLINING_BALANCE, UNITS_OF_PRODUCTION
+11. useful_life_years (int) - Vida �til en a�os
+12. salvage_value (decimal(10,2)) - Valor de salvamento estimado
+13. section_179_deduction (decimal(12,2)) - Deducci�n Section 179 IRS aplicada
+14. current_book_value (decimal(12,2)) - Valor en libros actual
+15. accumulated_depreciation (decimal(12,2)) - Depreciaci�n acumulada
+16. vendor_contact_id (int, FK ? CONTACTS) - Proveedor del equipo
+17. purchase_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n de compra
+18. serial_number (varchar(100)) - N�mero de serie del equipo
+19. warranty_expiration (date) - Fecha de expiraci�n de garant�a
+20. maintenance_schedule (json) - Programa de mantenimiento
+21. is_active (boolean, DEFAULT TRUE) - Activo en uso
+22. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+23. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(serial_number) WHERE serial_number IS NOT NULL
+Relaciones:
+* Conecta con ORGANIZATIONS como propietaria
+* Puede conectar con CONTACTS como vendor
+* Puede conectar con BANK_TRANSACTIONS para compra
+* Usado en DEPRECIATION_SCHEDULES para c�lculos
+�ndices Sugeridos:
+* idx_equipment_assets_org_category (organization_id, asset_category)
+* idx_equipment_assets_purchase_date (purchase_date)
+
+TABLA 143: EQUIPMENT_FINANCING
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. equipment_asset_id (int, FK ? EQUIPMENT_ASSETS) - Activo financiado
+3. lender_contact_id (int, FK ? CONTACTS) - Prestamista o financiera
+4. loan_amount (decimal(12,2)) - Monto del pr�stamo
+5. interest_rate (decimal(5,4)) - Tasa de inter�s anual
+6. loan_term_months (int) - Plazo del pr�stamo en meses
+7. monthly_payment (decimal(10,2)) - Pago mensual
+8. loan_start_date (date) - Fecha de inicio del pr�stamo
+9. loan_maturity_date (date) - Fecha de vencimiento del pr�stamo
+10. current_balance (decimal(12,2)) - Balance actual del pr�stamo
+11. total_payments_made (decimal(12,2)) - Total de pagos realizados
+12. total_interest_paid (decimal(12,2)) - Total de intereses pagados
+13. next_payment_date (date) - Fecha del pr�ximo pago
+14. payment_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta para pagos
+15. loan_status (varchar(20)) - ACTIVE, PAID_OFF, DEFAULTED, REFINANCED
+16. loan_agreement_url (varchar(300)) - URL del contrato en S3
+17. auto_payment_enabled (boolean, DEFAULT FALSE) - Pago autom�tico activado
+18. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+19. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(equipment_asset_id) - Un financiamiento por activo
+Relaciones:
+* Conecta con EQUIPMENT_ASSETS como garant�a
+* Conecta con CONTACTS como lender
+* Puede conectar con BANK_ACCOUNTS para pagos
+* Usado para tracking de pagos y balances
+�ndices Sugeridos:
+* idx_equipment_financing_status (loan_status)
+* idx_equipment_financing_next_payment (next_payment_date)
+
+TABLA 144: DEPRECIATION_SCHEDULES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. equipment_asset_id (int, FK ? EQUIPMENT_ASSETS) - Activo depreciado
+3. depreciation_year (int) - A�o de la depreciaci�n
+4. beginning_book_value (decimal(12,2)) - Valor en libros al inicio del a�o
+5. depreciation_expense (decimal(10,2)) - Gasto de depreciaci�n del a�o
+6. accumulated_depreciation (decimal(12,2)) - Depreciaci�n acumulada al final
+7. ending_book_value (decimal(12,2)) - Valor en libros al final del a�o
+8. depreciation_method_used (varchar(20)) - M�todo usado para el c�lculo
+9. depreciation_rate (decimal(5,4)) - Tasa de depreciaci�n aplicada
+10. bonus_depreciation (decimal(10,2)) - Depreciaci�n bonus IRS si aplica
+11. section_179_deduction (decimal(10,2)) - Deducci�n Section 179 del a�o
+12. calculated_date (timestamp) - Fecha de c�lculo
+13. is_projected (boolean, DEFAULT TRUE) - Depreciaci�n proyectada vs real
+14. journal_entry_id (int, FK ? BOOKKEEPING_ENTRIES) - Asiento contable relacionado
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(equipment_asset_id, depreciation_year) - Un schedule por a�o por activo
+Relaciones:
+* Conecta con EQUIPMENT_ASSETS como base
+* Puede conectar con BOOKKEEPING_ENTRIES para contabilidad
+* Usado para reportes financieros y tax planning
+�ndices Sugeridos:
+* idx_depreciation_schedules_asset_year (equipment_asset_id, depreciation_year)
+* idx_depreciation_schedules_projected (is_projected)
+
+3.12 P&L SYSTEM (4 tablas)
+TABLA 145: CHART_OF_ACCOUNTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. account_number (varchar(20)) - N�mero de cuenta "4000", "6100"
+4. account_name (varchar(100)) - Nombre "Revenue - Insurance", "Materials Expense"
+5. account_type (varchar(20)) - ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+6. account_subtype (varchar(30)) - CURRENT_ASSET, COST_OF_GOODS_SOLD, OPERATING_EXPENSE
+7. parent_account_id (int, FK ? CHART_OF_ACCOUNTS) - Cuenta padre para jerarqu�a
+8. normal_balance (varchar(10)) - DEBIT, CREDIT
+9. is_active (boolean, DEFAULT TRUE) - Cuenta activa para uso
+10. irs_category_id (int, FK ? IRS_CATEGORIES) - Categor�a IRS para tax reporting
+11. description (text) - Descripci�n de qu� incluye la cuenta
+12. requires_project_tracking (boolean, DEFAULT FALSE) - Requiere tracking por proyecto
+13. auto_categorization_keywords (json) - Keywords para categorizaci�n autom�tica
+14. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� la cuenta
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+16. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, account_number) - N�mero �nico por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para multi-tenant isolation
+* Self-referencing para jerarqu�a de cuentas
+* Puede conectar con IRS_CATEGORIES para compliance
+* Tracking de creaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_chart_of_accounts_org_type (organization_id, account_type)
+* idx_chart_of_accounts_parent (parent_account_id)
+
+TABLA 146: GENERAL_LEDGER_ENTRIES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bookkeeping_entry_id (int, FK ? BOOKKEEPING_ENTRIES) - Asiento contable padre
+3. chart_account_id (int, FK ? CHART_OF_ACCOUNTS) - Cuenta afectada
+4. debit_amount (decimal(12,2)) - Monto del d�bito
+5. credit_amount (decimal(12,2)) - Monto del cr�dito
+6. entry_description (varchar(300)) - Descripci�n espec�fica del movimiento
+7. transaction_date (date) - Fecha de la transacci�n
+8. reference_type (varchar(30)) - BANK_TRANSACTION, INVOICE, PAYMENT, ADJUSTMENT
+9. reference_id (int) - ID del registro de referencia
+10. project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto asociado si aplica
+11. contact_id (int, FK ? CONTACTS) - Contacto asociado si aplica
+12. reconciled (boolean, DEFAULT FALSE) - Movimiento reconciliado
+13. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el entry
+14. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* CHECK((debit_amount > 0 AND credit_amount = 0) OR (credit_amount > 0 AND debit_amount = 0))
+Relaciones:
+* Conecta con BOOKKEEPING_ENTRIES como padre
+* Conecta con CHART_OF_ACCOUNTS para la cuenta espec�fica
+* Puede conectar con CUSTOMER_PROJECTS para tracking
+* Puede conectar con CONTACTS para tracking
+* Tracking de creaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_general_ledger_account_date (chart_account_id, transaction_date)
+* idx_general_ledger_project (project_id)
+
+TABLA 147: PROFIT_LOSS_REPORTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n del reporte
+3. report_period_start (date) - Fecha inicio del per�odo
+4. report_period_end (date) - Fecha fin del per�odo
+5. report_type (varchar(20)) - MONTHLY, QUARTERLY, ANNUAL, CUSTOM
+6. total_revenue (decimal(12,2)) - Total de ingresos del per�odo
+7. insurance_revenue (decimal(12,2)) - Ingresos por seguros
+8. cash_revenue (decimal(12,2)) - Ingresos en efectivo
+9. other_revenue (decimal(12,2)) - Otros ingresos
+10. cost_of_goods_sold (decimal(12,2)) - Costo de bienes vendidos
+11. gross_profit (decimal(12,2)) - Ganancia bruta
+12. operating_expenses (decimal(12,2)) - Gastos operativos
+13. labor_expenses (decimal(12,2)) - Gastos de mano de obra
+14. materials_expenses (decimal(12,2)) - Gastos de materiales
+15. equipment_expenses (decimal(12,2)) - Gastos de equipo
+16. administrative_expenses (decimal(12,2)) - Gastos administrativos
+17. marketing_expenses (decimal(12,2)) - Gastos de marketing
+18. total_operating_expenses (decimal(12,2)) - Total gastos operativos
+19. operating_income (decimal(12,2)) - Ingreso operativo
+20. other_income (decimal(12,2)) - Otros ingresos
+21. other_expenses (decimal(12,2)) - Otros gastos
+22. net_income (decimal(12,2)) - Ingreso neto
+23. generated_date (timestamp) - Fecha de generaci�n del reporte
+24. generated_by_contact_id (int, FK ? CONTACTS) - Usuario que gener�
+25. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, report_period_start, report_period_end, report_type)
+Relaciones:
+* Conecta con ORGANIZATIONS para el reporte espec�fico
+* Tracking de generaci�n por CONTACTS
+* Usado para an�lisis financiero y dashboards ejecutivos
+�ndices Sugeridos:
+* idx_profit_loss_reports_org_period (organization_id, report_period_start)
+* idx_profit_loss_reports_type (report_type)
+
+TABLA 148: PROFIT_LOSS_LINE_ITEMS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. profit_loss_report_id (int, FK ? PROFIT_LOSS_REPORTS) - Reporte P&L padre
+3. chart_account_id (int, FK ? CHART_OF_ACCOUNTS) - Cuenta espec�fica
+4. line_item_category (varchar(50)) - REVENUE, COGS, OPERATING_EXPENSE, OTHER
+5. line_item_name (varchar(100)) - Nombre espec�fico del line item
+6. amount (decimal(12,2)) - Monto del line item
+7. percentage_of_revenue (decimal(5,2)) - Porcentaje de ingresos totales
+8. prior_period_amount (decimal(12,2)) - Monto del per�odo anterior
+9. variance_amount (decimal(12,2)) - Variaci�n vs per�odo anterior
+10. variance_percentage (decimal(5,2)) - Porcentaje de variaci�n
+11. budget_amount (decimal(12,2)) - Monto presupuestado
+12. budget_variance (decimal(12,2)) - Variaci�n vs presupuesto
+13. ytd_amount (decimal(12,2)) - Monto a�o a la fecha
+14. sort_order (int) - Orden de presentaci�n en el reporte
+15. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(profit_loss_report_id, chart_account_id) - Una cuenta por reporte
+Relaciones:
+* Conecta con PROFIT_LOSS_REPORTS como padre
+* Conecta con CHART_OF_ACCOUNTS para la cuenta espec�fica
+* Usado para an�lisis detallado de P&L
+�ndices Sugeridos:
+* idx_profit_loss_line_items_report (profit_loss_report_id)
+* idx_profit_loss_line_items_category (line_item_category)
+
+3.13 PAYMENT PROCESSING (6 tablas)
+TABLA 149: PAYMENT_PROCESSORS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. processor_name (varchar(100)) - Nombre "Stripe", "PayPal", "Square", "Authorize.Net"
+4. processor_type (varchar(30)) - CREDIT_CARD, ACH, DIGITAL_WALLET, BANK_TRANSFER
+5. api_endpoint (varchar(300)) - URL del API del procesador
+6. merchant_id (varchar(100)) - ID del comerciante (encriptado)
+7. api_key (varchar(255)) - API key (encriptado)
+8. api_secret (varchar(255)) - API secret (encriptado)
+9. webhook_url (varchar(300)) - URL para webhooks del procesador
+10. webhook_secret (varchar(255)) - Secret para validar webhooks (encriptado)
+11. transaction_fee_percentage (decimal(5,4)) - Porcentaje de fee por transacci�n
+12. transaction_fee_fixed (decimal(8,2)) - Fee fijo por transacci�n
+13. monthly_fee (decimal(8,2)) - Fee mensual del procesador
+14. chargeback_fee (decimal(8,2)) - Fee por chargeback
+15. supported_card_types (json) - Tipos de tarjeta soportados
+16. max_transaction_amount (decimal(12,2)) - Monto m�ximo por transacci�n
+17. settlement_time_days (int) - D�as para settlement de fondos
+18. is_active (boolean, DEFAULT TRUE) - Procesador activo
+19. is_primary (boolean, DEFAULT FALSE) - Procesador primario
+20. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+21. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, processor_name) - Un procesador por organizaci�n
+* Solo un procesador puede ser is_primary = TRUE por organizaci�n por tipo
+Relaciones:
+* Conecta con ORGANIZATIONS para configuraci�n espec�fica
+* Usado por PROCESSED_PAYMENTS para tracking de transacciones
+* Referenciado en PAYMENT_RECONCILIATION para conciliaci�n
+�ndices Sugeridos:
+* idx_payment_processors_org_active (organization_id, is_active)
+* idx_payment_processors_primary (is_primary, processor_type)
+
+TABLA 150: PROCESSED_PAYMENTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. payment_processor_id (int, FK ? PAYMENT_PROCESSORS) - Procesador usado
+3. invoice_id (int, FK ? INVOICES) - Factura pagada
+4. customer_contact_id (int, FK ? CONTACTS) - Cliente que pag�
+5. processor_transaction_id (varchar(100)) - ID del procesador
+6. payment_method (varchar(30)) - CREDIT_CARD, DEBIT_CARD, ACH, PAYPAL, APPLE_PAY
+7. card_last_four (varchar(4)) - �ltimos 4 d�gitos de tarjeta
+8. card_brand (varchar(20)) - VISA, MASTERCARD, AMEX, DISCOVER
+9. payment_amount (decimal(12,2)) - Monto total del pago
+10. processor_fee (decimal(8,2)) - Fee del procesador
+11. net_amount (decimal(12,2)) - Monto neto despu�s de fees
+12. payment_status (varchar(20)) - PENDING, AUTHORIZED, CAPTURED, SETTLED, FAILED
+13. authorization_code (varchar(50)) - C�digo de autorizaci�n
+14. transaction_date (timestamp) - Fecha y hora de la transacci�n
+15. settlement_date (date) - Fecha de settlement en cuenta bancaria
+16. customer_ip_address (varchar(45)) - IP del cliente para fraud detection
+17. billing_address (json) - Direcci�n de facturaci�n
+18. risk_score (decimal(5,2)) - Score de riesgo del procesador
+19. fraud_indicators (json) - Indicadores de fraude detectados
+20. processor_response_code (varchar(10)) - C�digo de respuesta del procesador
+21. processor_response_message (varchar(300)) - Mensaje del procesador
+22. refunded_amount (decimal(12,2), DEFAULT 0) - Monto reembolsado
+23. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+24. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(payment_processor_id, processor_transaction_id) - ID �nico por procesador
+Relaciones:
+* Conecta con PAYMENT_PROCESSORS para el procesador espec�fico
+* Conecta con INVOICES para la factura pagada
+* Conecta con CONTACTS para el cliente
+* Usado en PAYMENT_REFUNDS para reembolsos
+�ndices Sugeridos:
+* idx_processed_payments_invoice (invoice_id)
+* idx_processed_payments_status_date (payment_status, transaction_date)
+* idx_processed_payments_settlement (settlement_date)
+
+TABLA 151: PAYMENT_REFUNDS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. original_payment_id (int, FK ? PROCESSED_PAYMENTS) - Pago original
+3. refund_amount (decimal(12,2)) - Monto del reembolso
+4. refund_reason (varchar(100)) - Raz�n del reembolso
+5. processor_refund_id (varchar(100)) - ID del reembolso en el procesador
+6. refund_status (varchar(20)) - PENDING, PROCESSED, FAILED, CANCELLED
+7. refund_date (timestamp) - Fecha del reembolso
+8. processor_fee_refunded (decimal(8,2)) - Fee del procesador reembolsado
+9. net_refund_amount (decimal(12,2)) - Monto neto del reembolso
+10. refund_method (varchar(30)) - ORIGINAL_PAYMENT_METHOD, BANK_TRANSFER, CHECK
+11. expected_credit_date (date) - Fecha esperada de cr�dito al cliente
+12. processor_response_code (varchar(10)) - C�digo de respuesta
+13. processor_response_message (varchar(300)) - Mensaje del procesador
+14. internal_notes (text) - Notas internas del reembolso
+15. requested_by_contact_id (int, FK ? CONTACTS) - Usuario que solicit�
+16. approved_by_contact_id (int, FK ? CONTACTS) - Usuario que aprob�
+17. processed_by_contact_id (int, FK ? CONTACTS) - Usuario que proces�
+18. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+19. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(processor_refund_id) WHERE processor_refund_id IS NOT NULL
+Relaciones:
+* Conecta con PROCESSED_PAYMENTS como origen
+* Tracking de solicitud, aprobaci�n y procesamiento por CONTACTS
+* Usado para an�lisis de refunds y customer satisfaction
+�ndices Sugeridos:
+* idx_payment_refunds_original (original_payment_id)
+* idx_payment_refunds_status_date (refund_status, refund_date)
+
+TABLA 152: PAYMENT_CHARGEBACKS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. original_payment_id (int, FK ? PROCESSED_PAYMENTS) - Pago original disputado
+3. chargeback_id (varchar(100)) - ID del chargeback del procesador
+4. chargeback_amount (decimal(12,2)) - Monto del chargeback
+5. chargeback_fee (decimal(8,2)) - Fee por chargeback
+6. chargeback_reason_code (varchar(10)) - C�digo de raz�n del chargeback
+7. chargeback_reason_description (varchar(300)) - Descripci�n de la raz�n
+8. chargeback_date (timestamp) - Fecha del chargeback
+9. dispute_deadline (date) - Fecha l�mite para disputar
+10. chargeback_status (varchar(20)) - RECEIVED, DISPUTED, WON, LOST, EXPIRED
+11. dispute_evidence (json) - Evidencia presentada para disputa
+12. dispute_submitted_date (timestamp) - Fecha de env�o de disputa
+13. resolution_date (date) - Fecha de resoluci�n
+14. resolution_outcome (varchar(20)) - WON, LOST, PARTIAL_WIN
+15. recovered_amount (decimal(12,2)) - Monto recuperado si gan� disputa
+16. liability_shift (boolean, DEFAULT FALSE) - Shift de responsabilidad aplicado
+17. prevention_score (decimal(5,2)) - Score de prevenci�n para el futuro
+18. processor_case_id (varchar(100)) - ID del caso en el procesador
+19. assigned_to_contact_id (int, FK ? CONTACTS) - Usuario asignado al caso
+20. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+21. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(chargeback_id) - ID �nico de chargeback
+* UNIQUE(processor_case_id) WHERE processor_case_id IS NOT NULL
+Relaciones:
+* Conecta con PROCESSED_PAYMENTS como origen
+* Tracking de asignaci�n por CONTACTS
+* Usado para an�lisis de fraud prevention y loss management
+�ndices Sugeridos:
+* idx_payment_chargebacks_original (original_payment_id)
+* idx_payment_chargebacks_status_deadline (chargeback_status, dispute_deadline)
+
+TABLA 153: RECURRING_PAYMENT_PLANS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. customer_contact_id (int, FK ? CONTACTS) - Cliente del plan recurrente
+3. payment_processor_id (int, FK ? PAYMENT_PROCESSORS) - Procesador a usar
+4. subscription_id (varchar(100)) - ID de suscripci�n del procesador
+5. plan_name (varchar(100)) - Nombre descriptivo del plan
+6. billing_frequency (varchar(20)) - WEEKLY, BIWEEKLY, MONTHLY, QUARTERLY, ANNUAL
+7. billing_amount (decimal(10,2)) - Monto de cada facturaci�n
+8. setup_fee (decimal(10,2)) - Fee inicial de setup
+9. trial_period_days (int) - D�as de per�odo de prueba
+10. total_billing_cycles (int) - Total de ciclos (NULL = indefinido)
+11. completed_billing_cycles (int, DEFAULT 0) - Ciclos completados
+12. next_billing_date (date) - Fecha del pr�ximo cobro
+13. plan_status (varchar(20)) - ACTIVE, PAUSED, CANCELLED, EXPIRED, PENDING
+14. payment_method_token (varchar(255)) - Token del m�todo de pago (encriptado)
+15. last_payment_date (date) - Fecha del �ltimo pago exitoso
+16. last_payment_amount (decimal(10,2)) - Monto del �ltimo pago
+17. failed_payment_count (int, DEFAULT 0) - N�mero de pagos fallidos consecutivos
+18. max_failed_payments (int, DEFAULT 3) - M�ximo de fallos antes de cancelar
+19. cancellation_reason (varchar(100)) - Raz�n de cancelaci�n si aplica
+20. cancelled_date (date) - Fecha de cancelaci�n
+21. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el plan
+22. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+23. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(payment_processor_id, subscription_id) - ID �nico por procesador
+Relaciones:
+* Conecta con CONTACTS para el cliente
+* Conecta con PAYMENT_PROCESSORS para el procesador espec�fico
+* Tracking de creaci�n por CONTACTS
+* Genera PROCESSED_PAYMENTS autom�ticamente
+�ndices Sugeridos:
+* idx_recurring_payment_plans_customer (customer_contact_id)
+* idx_recurring_payment_plans_next_billing (next_billing_date, plan_status)
+
+TABLA 154: PAYMENT_RECONCILIATION
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. payment_processor_id (int, FK ? PAYMENT_PROCESSORS) - Procesador reconciliado
+3. reconciliation_date (date) - Fecha de la reconciliaci�n
+4. statement_start_date (date) - Fecha inicio del statement del procesador
+5. statement_end_date (date) - Fecha fin del statement del procesador
+6. processor_gross_amount (decimal(12,2)) - Monto bruto seg�n procesador
+7. processor_fee_amount (decimal(12,2)) - Fees seg�n procesador
+8. processor_net_amount (decimal(12,2)) - Monto neto seg�n procesador
+9. processor_refund_amount (decimal(12,2)) - Reembolsos seg�n procesador
+10. processor_chargeback_amount (decimal(12,2)) - Chargebacks seg�n procesador
+11. system_gross_amount (decimal(12,2)) - Monto bruto seg�n sistema
+12. system_fee_amount (decimal(12,2)) - Fees seg�n sistema
+13. system_net_amount (decimal(12,2)) - Monto neto seg�n sistema
+14. system_refund_amount (decimal(12,2)) - Reembolsos seg�n sistema
+15. system_chargeback_amount (decimal(12,2)) - Chargebacks seg�n sistema
+16. gross_variance (decimal(12,2)) - Diferencia en monto bruto
+17. fee_variance (decimal(12,2)) - Diferencia en fees
+18. net_variance (decimal(12,2)) - Diferencia en monto neto
+19. transaction_count_variance (int) - Diferencia en n�mero de transacciones
+20. reconciliation_status (varchar(20)) - MATCHED, VARIANCE, PENDING_REVIEW
+21. variance_explanation (text) - Explicaci�n de variaciones
+22. bank_deposit_amount (decimal(12,2)) - Monto depositado en banco
+23. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n bancaria
+24. reconciled_by_contact_id (int, FK ? CONTACTS) - Usuario que reconcili�
+25. reconciled_at (timestamp) - Fecha de reconciliaci�n
+26. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+27. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(payment_processor_id, statement_start_date, statement_end_date)
+Relaciones:
+* Conecta con PAYMENT_PROCESSORS para el procesador espec�fico
+* Puede conectar con BANK_TRANSACTIONS para dep�sitos
+* Tracking de reconciliaci�n por CONTACTS
+* Usado para audit y compliance financiero
+�ndices Sugeridos:
+* idx_payment_reconciliation_processor_date (payment_processor_id, reconciliation_date)
+* idx_payment_reconciliation_status (reconciliation_status)
+
+3.14 COMPLIANCE (4 tablas)
+TABLA 155: REGULATORY_COMPLIANCE_TRACKING
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n sujeta a compliance
+3. regulation_name (varchar(100)) - Nombre "SOX Section 404", "PCI DSS", "GDPR Financial"
+4. regulation_type (varchar(30)) - FINANCIAL, DATA_PRIVACY, INDUSTRY_SPECIFIC, TAX
+5. regulatory_body (varchar(100)) - Entidad regulatoria "SEC", "PCI Council", "IRS"
+6. compliance_requirement (text) - Descripci�n del requerimiento espec�fico
+7. compliance_status (varchar(20)) - COMPLIANT, NON_COMPLIANT, IN_PROGRESS, PENDING_REVIEW
+8. last_assessment_date (date) - Fecha de �ltima evaluaci�n
+9. next_assessment_due (date) - Fecha de pr�xima evaluaci�n requerida
+10. assessment_frequency (varchar(20)) - ANNUAL, QUARTERLY, MONTHLY, ON_DEMAND
+11. compliance_score (decimal(5,2)) - Score de compliance (0-100)
+12. risk_level (varchar(20)) - LOW, MEDIUM, HIGH, CRITICAL
+13. mitigation_actions (json) - Acciones de mitigaci�n implementadas
+14. supporting_documents (json) - Documentos de soporte en S3
+15. assigned_contact_id (int, FK ? CONTACTS) - Responsable de compliance
+16. external_auditor_contact_id (int, FK ? CONTACTS) - Auditor externo si aplica
+17. compliance_cost (decimal(10,2)) - Costo de cumplimiento
+18. non_compliance_penalty (decimal(12,2)) - Penalidad por incumplimiento
+19. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+20. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, regulation_name) - Una regulaci�n por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para compliance espec�fico
+* Conecta con CONTACTS para responsables y auditores
+* Usado para tracking de compliance violations
+�ndices Sugeridos:
+* idx_regulatory_compliance_org_status (organization_id, compliance_status)
+* idx_regulatory_compliance_next_assessment (next_assessment_due)
+
+TABLA 156: COMPLIANCE_VIOLATIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. compliance_tracking_id (int, FK ? REGULATORY_COMPLIANCE_TRACKING) - Regulaci�n violada
+3. violation_date (date) - Fecha de la violaci�n
+4. violation_type (varchar(50)) - REPORTING_DELAY, DATA_BREACH, PROCESS_FAILURE
+5. violation_severity (varchar(20)) - MINOR, MODERATE, MAJOR, CRITICAL
+6. violation_description (text) - Descripci�n detallada de la violaci�n
+7. root_cause_analysis (text) - An�lisis de causa ra�z
+8. detection_method (varchar(50)) - INTERNAL_AUDIT, EXTERNAL_AUDIT, SELF_REPORTED
+9. detected_by_contact_id (int, FK ? CONTACTS) - Usuario que detect�
+10. reported_to_regulator (boolean, DEFAULT FALSE) - Reportado a regulador
+11. regulator_case_number (varchar(100)) - N�mero de caso del regulador
+12. financial_impact (decimal(12,2)) - Impacto financiero estimado
+13. corrective_actions (json) - Acciones correctivas tomadas
+14. corrective_action_deadline (date) - Fecha l�mite para correcci�n
+15. resolution_status (varchar(20)) - OPEN, IN_PROGRESS, RESOLVED, ESCALATED
+16. resolution_date (date) - Fecha de resoluci�n
+17. lessons_learned (text) - Lecciones aprendidas
+18. assigned_to_contact_id (int, FK ? CONTACTS) - Responsable de resoluci�n
+19. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+20. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(regulator_case_number) WHERE regulator_case_number IS NOT NULL
+Relaciones:
+* Conecta con REGULATORY_COMPLIANCE_TRACKING como origen
+* Tracking de detecci�n y asignaci�n por CONTACTS
+* Usado para an�lisis de compliance patterns
+�ndices Sugeridos:
+* idx_compliance_violations_tracking (compliance_tracking_id)
+* idx_compliance_violations_status_deadline (resolution_status, corrective_action_deadline)
+
+TABLA 157: FRAUD_DETECTION_RULES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. rule_name (varchar(100)) - Nombre "Large Cash Transaction", "Velocity Check"
+4. rule_description (text) - Descripci�n de qu� detecta la regla
+5. rule_type (varchar(30)) - TRANSACTION_AMOUNT, VELOCITY, PATTERN, GEOGRAPHIC
+6. trigger_conditions (json) - Condiciones que activan la regla
+7. threshold_values (json) - Valores umbral para activaci�n
+8. risk_score_weight (decimal(5,2)) - Peso en el score de riesgo total
+9. action_type (varchar(30)) - ALERT, BLOCK, REVIEW, AUTO_APPROVE
+10. is_active (boolean, DEFAULT TRUE) - Regla activa
+11. machine_learning_enabled (boolean, DEFAULT FALSE) - Usa ML para ajustes
+12. false_positive_rate (decimal(5,4)) - Tasa de falsos positivos
+13. detection_accuracy (decimal(5,2)) - Precisi�n de detecci�n (0-100)
+14. last_tuned_date (date) - Fecha de �ltima afinaci�n de la regla
+15. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� la regla
+16. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+17. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, rule_name) - Nombre �nico por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para reglas espec�ficas
+* Tracking de creaci�n por CONTACTS
+* Usado por FINANCIAL_AUDIT_TRAIL para flagging
+�ndices Sugeridos:
+* idx_fraud_detection_rules_org_active (organization_id, is_active)
+* idx_fraud_detection_rules_accuracy (detection_accuracy)
+
+TABLA 158: FINANCIAL_AUDIT_TRAIL
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n del evento
+3. event_type (varchar(50)) - TRANSACTION_CREATED, PAYMENT_PROCESSED, RULE_TRIGGERED
+4. event_timestamp (timestamp) - Fecha y hora exacta del evento
+5. user_contact_id (int, FK ? CONTACTS) - Usuario que ejecut� la acci�n
+6. affected_table (varchar(50)) - Tabla afectada por el evento
+7. affected_record_id (int) - ID del registro afectado
+8. old_values (json) - Valores anteriores (para updates)
+9. new_values (json) - Valores nuevos (para inserts/updates)
+10. transaction_amount (decimal(12,2)) - Monto si es transacci�n financiera
+11. ip_address (varchar(45)) - IP del usuario
+12. user_agent (varchar(500)) - User agent del browser
+13. session_id (varchar(100)) - ID de sesi�n
+14. fraud_score (decimal(5,2)) - Score de riesgo del evento
+15. fraud_rules_triggered (json) - Reglas de fraude activadas
+16. approval_required (boolean, DEFAULT FALSE) - Requiere aprobaci�n
+17. approved_by_contact_id (int, FK ? CONTACTS) - Usuario aprobador
+18. approved_at (timestamp) - Fecha de aprobaci�n
+19. risk_flags (json) - Banderas de riesgo identificadas
+20. compliance_tags (json) - Tags de compliance relevantes
+21. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Permite m�ltiples eventos por registro
+Relaciones:
+* Conecta con ORGANIZATIONS para contexto
+* Tracking de usuario y aprobaci�n por CONTACTS
+* Referencia tablas m�ltiples v�a affected_table/affected_record_id
+* Usado para auditor�a completa y compliance
+�ndices Sugeridos:
+* idx_financial_audit_trail_org_timestamp (organization_id, event_timestamp)
+* idx_financial_audit_trail_user_type (user_contact_id, event_type)
+* idx_financial_audit_trail_affected (affected_table, affected_record_id)
+
+3.15 INSURANCE CLAIMS (2 tablas)
+TABLA 159: INSURANCE_CLAIM_FINANCIALS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto con claim de seguro
+3. insurance_company_contact_id (int, FK ? CONTACTS) - Compa��a de seguros
+4. claim_number (varchar(100)) - N�mero del claim
+5. claim_status (varchar(30)) - SUBMITTED, UNDER_REVIEW, APPROVED, DENIED, PARTIAL
+6. total_claim_amount (decimal(12,2)) - Monto total del claim
+7. approved_amount (decimal(12,2)) - Monto aprobado por seguro
+8. deductible_amount (decimal(10,2)) - Deducible del cliente
+9. depreciation_amount (decimal(10,2)) - Depreciaci�n aplicada
+10. upgrades_amount (decimal(10,2)) - Monto de upgrades no cubiertos
+11. supplements_amount (decimal(10,2)) - Suplementos aprobados
+12. total_supplements_requested (decimal(10,2)) - Total de suplementos solicitados
+13. net_claim_amount (decimal(12,2)) - Monto neto despu�s de deducible
+14. customer_out_of_pocket (decimal(10,2)) - Monto que paga el cliente
+15. claim_submission_date (date) - Fecha de env�o del claim
+16. claim_approval_date (date) - Fecha de aprobaci�n
+17. first_payment_date (date) - Fecha del primer pago
+18. final_payment_date (date) - Fecha del pago final
+19. adjuster_contact_id (int, FK ? CONTACTS) - Adjuster asignado
+20. public_adjuster_contact_id (int, FK ? CONTACTS) - Public adjuster si aplica
+21. attorney_contact_id (int, FK ? CONTACTS) - Abogado si aplica
+22. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+23. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(insurance_company_contact_id, claim_number) - Claim �nico por aseguradora
+Relaciones:
+* Conecta con CUSTOMER_PROJECTS como proyecto base
+* Conecta con m�ltiples CONTACTS (aseguradora, adjuster, etc.)
+* Usado en INSURANCE_PAYMENT_SCHEDULE para pagos
+�ndices Sugeridos:
+* idx_insurance_claim_financials_project (customer_project_id)
+* idx_insurance_claim_financials_status (claim_status)
+
+TABLA 160: INSURANCE_PAYMENT_SCHEDULE
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. insurance_claim_financials_id (int, FK ? INSURANCE_CLAIM_FINANCIALS) - Claim asociado
+3. payment_type (varchar(30)) - INITIAL, DEPRECIATION, SUPPLEMENT, FINAL
+4. scheduled_amount (decimal(12,2)) - Monto programado para este pago
+5. scheduled_date (date) - Fecha programada del pago
+6. payment_trigger (varchar(50)) - COMPLETION, MILESTONE, TIME_BASED, MANUAL
+7. trigger_description (varchar(300)) - Descripci�n del trigger
+8. actual_payment_date (date) - Fecha real de recepci�n del pago
+9. actual_amount (decimal(12,2)) - Monto real recibido
+10. payment_method (varchar(30)) - CHECK, ACH, WIRE_TRANSFER
+11. payment_reference (varchar(100)) - N�mero de cheque o referencia
+12. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n bancaria
+13. payment_status (varchar(20)) - PENDING, RECEIVED, OVERDUE, CANCELLED
+14. variance_amount (decimal(10,2)) - Diferencia entre programado y real
+15. variance_reason (varchar(300)) - Raz�n de la variaci�n
+16. reminder_sent_count (int, DEFAULT 0) - Recordatorios enviados
+17. last_reminder_date (date) - Fecha del �ltimo recordatorio
+18. notes (text) - Notas adicionales del pago
+19. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+20. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* Ninguna espec�fica - Un claim puede tener m�ltiples pagos programados
+Relaciones:
+* Conecta con INSURANCE_CLAIM_FINANCIALS como base
+* Puede conectar con BANK_TRANSACTIONS cuando se recibe
+* Usado para cash flow forecasting y collections
+�ndices Sugeridos:
+* idx_insurance_payment_schedule_claim (insurance_claim_financials_id)
+* idx_insurance_payment_schedule_scheduled_date (scheduled_date, payment_status)
+
+3.16 SUBCONTRACTORS (2 tablas)
+TABLA 161: SUBCONTRACTOR_CONTRACTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. subcontractor_contact_id (int, FK ? CONTACTS) - Subcontratista
+3. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto asignado
+4. contract_number (varchar(100)) - N�mero del contrato
+5. contract_type (varchar(30)) - FIXED_PRICE, TIME_MATERIALS, PERCENTAGE
+6. contract_amount (decimal(12,2)) - Monto total del contrato
+7. hourly_rate (decimal(8,2)) - Tarifa por hora si aplica
+8. work_description (text) - Descripci�n del trabajo a realizar
+9. start_date (date) - Fecha de inicio del trabajo
+10. completion_date (date) - Fecha de finalizaci�n acordada
+11. actual_completion_date (date) - Fecha real de finalizaci�n
+12. contract_status (varchar(20)) - DRAFT, SIGNED, IN_PROGRESS, COMPLETED, CANCELLED
+13. payment_terms (varchar(50)) - NET_30, NET_15, UPON_COMPLETION, MILESTONE_BASED
+14. milestone_payments (json) - Pagos por hitos si aplica
+15. retention_percentage (decimal(5,2)) - Porcentaje de retenci�n
+16. retention_amount (decimal(10,2)) - Monto de retenci�n
+17. insurance_required (boolean, DEFAULT TRUE) - Requiere seguro de responsabilidad
+18. insurance_certificate_url (varchar(300)) - URL del certificado en S3
+19. w9_form_url (varchar(300)) - URL del formulario W-9 en S3
+20. contract_document_url (varchar(300)) - URL del contrato firmado en S3
+21. performance_rating (decimal(3,1)) - Rating de desempe�o (1-5)
+22. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el contrato
+23. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+24. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(contract_number) WHERE contract_number IS NOT NULL
+Relaciones:
+* Conecta con CONTACTS para el subcontratista
+* Conecta con CUSTOMER_PROJECTS para el trabajo espec�fico
+* Tracking de creaci�n por CONTACTS
+* Usado en SUBCONTRACTOR_PAYMENTS para pagos
+�ndices Sugeridos:
+* idx_subcontractor_contracts_subcontractor (subcontractor_contact_id)
+* idx_subcontractor_contracts_project (customer_project_id)
+* idx_subcontractor_contracts_status (contract_status)
+
+TABLA 162: SUBCONTRACTOR_PAYMENTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. subcontractor_contract_id (int, FK ? SUBCONTRACTOR_CONTRACTS) - Contrato base
+3. payment_type (varchar(30)) - MILESTONE, PROGRESS, COMPLETION, RETENTION_RELEASE
+4. invoice_number (varchar(100)) - N�mero de factura del subcontratista
+5. invoice_date (date) - Fecha de la factura
+6. invoice_amount (decimal(12,2)) - Monto de la factura
+7. hours_worked (decimal(6,2)) - Horas trabajadas si aplica
+8. materials_cost (decimal(10,2)) - Costo de materiales si aplica
+9. approved_amount (decimal(12,2)) - Monto aprobado para pago
+10. retention_held (decimal(10,2)) - Monto de retenci�n aplicado
+11. net_payment_amount (decimal(12,2)) - Monto neto a pagar
+12. payment_status (varchar(20)) - PENDING_APPROVAL, APPROVED, PAID, DISPUTED
+13. payment_method (varchar(30)) - CHECK, ACH, WIRE_TRANSFER
+14. payment_date (date) - Fecha del pago
+15. check_number (varchar(20)) - N�mero de cheque si aplica
+16. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n bancaria
+17. invoice_document_url (varchar(300)) - URL de la factura en S3
+18. supporting_documents_urls (json) - URLs de documentos de soporte
+19. approval_notes (text) - Notas de aprobaci�n
+20. dispute_reason (varchar(300)) - Raz�n de disputa si aplica
+21. approved_by_contact_id (int, FK ? CONTACTS) - Usuario que aprob�
+22. paid_by_contact_id (int, FK ? CONTACTS) - Usuario que proces� el pago
+23. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+24. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(subcontractor_contract_id, invoice_number) - Factura �nica por contrato
+Relaciones:
+* Conecta con SUBCONTRACTOR_CONTRACTS como base
+* Puede conectar con BANK_TRANSACTIONS para el pago
+* Tracking de aprobaci�n y pago por CONTACTS
+�ndices Sugeridos:
+* idx_subcontractor_payments_contract (subcontractor_contract_id)
+* idx_subcontractor_payments_status_date (payment_status, payment_date)
+
+3.17 VENDOR PAYMENTS (2 tablas)
+TABLA 163: VENDOR_PAYMENTS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. vendor_contact_id (int, FK ? CONTACTS) - Proveedor a pagar
+3. purchase_order_number (varchar(100)) - N�mero de orden de compra
+4. invoice_number (varchar(100)) - N�mero de factura del vendor
+5. invoice_date (date) - Fecha de la factura
+6. due_date (date) - Fecha de vencimiento
+7. invoice_amount (decimal(12,2)) - Monto total de la factura
+8. discount_available (decimal(10,2)) - Descuento por pronto pago
+9. discount_date (date) - Fecha l�mite para descuento
+10. tax_amount (decimal(10,2)) - Impuestos incluidos
+11. approved_amount (decimal(12,2)) - Monto aprobado para pago
+12. payment_status (varchar(20)) - PENDING, APPROVED, PAID, DISPUTED, CANCELLED
+13. payment_method (varchar(30)) - CHECK, ACH, WIRE_TRANSFER, CREDIT_CARD
+14. payment_date (date) - Fecha del pago
+15. payment_amount (decimal(12,2)) - Monto real pagado
+16. discount_taken (decimal(10,2)) - Descuento tomado
+17. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n bancaria
+18. check_id (int, FK ? CHECK_REGISTER) - Cheque emitido si aplica
+19. expense_category_id (int, FK ? IRS_CATEGORIES) - Categor�a del gasto
+20. project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto asociado si aplica
+21. invoice_document_url (varchar(300)) - URL de la factura en S3
+22. approval_workflow_id (int, FK ? APPROVAL_WORKFLOWS) - Workflow de aprobaci�n
+23. approved_by_contact_id (int, FK ? CONTACTS) - Usuario que aprob�
+24. paid_by_contact_id (int, FK ? CONTACTS) - Usuario que proces� el pago
+25. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+26. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(vendor_contact_id, invoice_number) - Factura �nica por vendor
+Relaciones:
+* Conecta con CONTACTS para el vendor
+* Puede conectar con BANK_TRANSACTIONS y CHECK_REGISTER para pago
+* Usa IRS_CATEGORIES para clasificaci�n
+* Puede asociarse a CUSTOMER_PROJECTS espec�ficos
+* Tracking de aprobaci�n y pago por CONTACTS
+�ndices Sugeridos:
+* idx_vendor_payments_vendor_status (vendor_contact_id, payment_status)
+* idx_vendor_payments_due_date (due_date, payment_status)
+
+TABLA 164: EMPLOYEE_COMMISSIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. employee_contact_id (int, FK ? CONTACTS) - Empleado que recibe comisi�n
+3. commission_period_start (date) - Inicio del per�odo de comisi�n
+4. commission_period_end (date) - Fin del per�odo de comisi�n
+5. commission_type (varchar(30)) - SALES, RETENTION, PERFORMANCE, BONUS
+6. calculation_method (varchar(30)) - PERCENTAGE, FIXED_AMOUNT, TIERED, CUSTOM
+7. base_amount (decimal(12,2)) - Monto base para c�lculo
+8. commission_rate (decimal(5,4)) - Tasa de comisi�n aplicada
+9. calculated_amount (decimal(10,2)) - Monto calculado de comisi�n
+10. adjustments (decimal(10,2)) - Ajustes manuales aplicados
+11. final_amount (decimal(10,2)) - Monto final a pagar
+12. qualifying_invoices (json) - Facturas que califican para comisi�n
+13. qualifying_criteria (json) - Criterios aplicados para calificar
+14. commission_status (varchar(20)) - CALCULATED, APPROVED, PAID, DISPUTED
+15. calculation_date (timestamp) - Fecha de c�lculo
+16. payment_date (date) - Fecha de pago
+17. payment_method (varchar(30)) - PAYROLL, CHECK, DIRECT_DEPOSIT, WALLET_CREDIT
+18. wallet_id (int, FK ? VIRTUAL_WALLETS) - Wallet de comisiones
+19. payroll_period_id (int) - ID del per�odo de n�mina si aplica
+20. override_reason (varchar(300)) - Raz�n de override manual
+21. notes (text) - Notas adicionales
+22. calculated_by_contact_id (int, FK ? CONTACTS) - Usuario que calcul�
+23. approved_by_contact_id (int, FK ? CONTACTS) - Usuario que aprob�
+24. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+25. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+
+Restricciones �nicas:
+* UNIQUE(employee_contact_id, commission_period_start, commission_period_end, commission_type)
+Relaciones:
+* Conecta con CONTACTS para el empleado
+* Puede conectar con VIRTUAL_WALLETS para acumulaci�n
+* Tracking de c�lculo y aprobaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_employee_commissions_employee_period (employee_contact_id, commission_period_start)
+* idx_employee_commissions_status (commission_status)
+
+3.18 EXPENSE MATCHING (2 tablas)
+TABLA 165: EXPENSE_MATCHING_RULES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. rule_name (varchar(100)) - Nombre "Auto-match Home Depot purchases"
+4. rule_description (text) - Descripci�n de qu� hace la regla
+5. merchant_patterns (json) - Patrones de nombres de comerciantes
+6. amount_range_min (decimal(10,2)) - Monto m�nimo para match
+7. amount_range_max (decimal(10,2)) - Monto m�ximo para match
+8. date_tolerance_days (int) - Tolerancia en d�as para matching
+9. default_irs_category_id (int, FK ? IRS_CATEGORIES) - Categor�a default
+10. auto_assign_project (boolean, DEFAULT FALSE) - Auto-asignar a proyecto
+11. project_assignment_rules (json) - Reglas para asignaci�n de proyecto
+12. confidence_threshold (decimal(5,2)) - Umbral de confianza para auto-match
+13. require_manual_review (boolean, DEFAULT FALSE) - Requiere revisi�n manual
+14. match_priority (int) - Prioridad de la regla (1 = m�s alta)
+15. is_active (boolean, DEFAULT TRUE) - Regla activa
+16. success_rate (decimal(5,2)) - Tasa de �xito de la regla
+17. false_positive_rate (decimal(5,2)) - Tasa de falsos positivos
+18. last_tuned_date (date) - Fecha de �ltima afinaci�n
+19. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� la regla
+20. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+21. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, rule_name) - Nombre �nico por organizaci�n
+Relaciones:
+* Conecta con ORGANIZATIONS para reglas espec�ficas
+* Puede usar IRS_CATEGORIES como default
+* Tracking de creaci�n por CONTACTS
+* Usado por PENDING_EXPENSE_MATCHES para matching
+�ndices Sugeridos:
+* idx_expense_matching_rules_org_active (organization_id, is_active)
+* idx_expense_matching_rules_priority (match_priority)
+
+TABLA 166: PENDING_EXPENSE_MATCHES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n a matchear
+3. expense_document_id (int, FK ? EXPENSE_DOCUMENTS) - Documento candidato
+4. matching_rule_id (int, FK ? EXPENSE_MATCHING_RULES) - Regla aplicada
+5. match_score (decimal(5,2)) - Score de coincidencia (0-100)
+6. match_factors (json) - Factores que contribuyen al match
+7. amount_variance (decimal(10,2)) - Diferencia en montos
+8. date_variance_days (int) - Diferencia en d�as
+9. merchant_similarity (decimal(5,2)) - Similitud de comerciante (0-100)
+10. extraction_confidence (decimal(5,2)) - Confianza de extracci�n OCR
+11. match_status (varchar(20)) - UNMATCHED, MATCHED, MULTIPLE_MATCHES, REJECTED
+12. suggested_matches (json) - Array de matches potenciales
+13. auto_matched (boolean, DEFAULT FALSE) - Matched autom�ticamente
+14. reviewed_by_contact_id (int, FK ? CONTACTS) - Usuario que revis�
+15. reviewed_at (timestamp) - Fecha de revisi�n
+16. match_notes (text) - Notas del matching
+17. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+18. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(bank_transaction_id, expense_document_id) - Un match por par
+Relaciones:
+* Conecta con BANK_TRANSACTIONS para la transacci�n
+* Conecta con EXPENSE_DOCUMENTS para el documento
+* Usa EXPENSE_MATCHING_RULES para la regla aplicada
+* Tracking de revisi�n por CONTACTS
+�ndices Sugeridos:
+* idx_pending_expense_matches_transaction (bank_transaction_id)
+* idx_pending_expense_matches_status_score (match_status, match_score)
+
+3.19 PAYMENT RECONCILIATION (2 tablas)
+TABLA 167: PAYMENT_RECONCILIATION_BATCHES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. batch_name (varchar(100)) - Nombre "Daily Card Settlements - 2025-06-28"
+4. batch_date (date) - Fecha del lote
+5. batch_type (varchar(30)) - CREDIT_CARD, ACH, WIRE_TRANSFER, CHECK_DEPOSITS
+6. payment_processor_id (int, FK ? PAYMENT_PROCESSORS) - Procesador si aplica
+7. bank_account_id (int, FK ? BANK_ACCOUNTS) - Cuenta bancaria destino
+8. expected_amount (decimal(12,2)) - Monto esperado del lote
+9. actual_amount (decimal(12,2)) - Monto real recibido
+10. transaction_count_expected (int) - N�mero de transacciones esperadas
+11. transaction_count_actual (int) - N�mero de transacciones reales
+12. reconciliation_status (varchar(20)) - PENDING, MATCHED, VARIANCE, COMPLETED
+13. variance_amount (decimal(12,2)) - Diferencia entre esperado y real
+14. variance_reason (varchar(300)) - Raz�n de la variaci�n
+15. processor_batch_id (varchar(100)) - ID del lote del procesador
+16. settlement_date (date) - Fecha de settlement
+17. fees_deducted (decimal(10,2)) - Fees deducidos del lote
+18. chargebacks_deducted (decimal(10,2)) - Chargebacks deducidos
+19. reconciled_by_contact_id (int, FK ? CONTACTS) - Usuario que reconcili�
+20. reconciled_at (timestamp) - Fecha de reconciliaci�n
+21. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+22. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(processor_batch_id) WHERE processor_batch_id IS NOT NULL
+Relaciones:
+* Conecta con ORGANIZATIONS para el contexto
+* Puede conectar con PAYMENT_PROCESSORS para lotes de tarjetas
+* Conecta con BANK_ACCOUNTS para la cuenta destino
+* Tracking de reconciliaci�n por CONTACTS
+�ndices Sugeridos:
+* idx_payment_reconciliation_batches_org_date (organization_id, batch_date)
+* idx_payment_reconciliation_batches_status (reconciliation_status)
+
+TABLA 168: PAYMENT_RECONCILIATION_DETAILS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. reconciliation_batch_id (int, FK ? PAYMENT_RECONCILIATION_BATCHES) - Lote padre
+3. processed_payment_id (int, FK ? PROCESSED_PAYMENTS) - Pago procesado
+4. bank_transaction_id (int, FK ? BANK_TRANSACTIONS) - Transacci�n bancaria
+5. match_type (varchar(30)) - EXACT_MATCH, AMOUNT_MATCH, PARTIAL_MATCH, NO_MATCH
+6. payment_amount (decimal(12,2)) - Monto del pago original
+7. settled_amount (decimal(12,2)) - Monto settled en banco
+8. fee_amount (decimal(8,2)) - Fee deducido
+9. net_amount (decimal(12,2)) - Monto neto depositado
+10. variance_amount (decimal(10,2)) - Diferencia entre esperado y real
+11. variance_reason (varchar(200)) - Raz�n de la variaci�n
+12. settlement_date (date) - Fecha de settlement
+13. processor_reference (varchar(100)) - Referencia del procesador
+14. reconciliation_notes (text) - Notas de reconciliaci�n
+15. requires_investigation (boolean, DEFAULT FALSE) - Requiere investigaci�n
+16. investigation_notes (text) - Notas de investigaci�n
+17. resolved (boolean, DEFAULT TRUE) - Diferencia resuelta
+18. resolved_by_contact_id (int, FK ? CONTACTS) - Usuario que resolvi�
+19. resolved_at (timestamp) - Fecha de resoluci�n
+20. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(reconciliation_batch_id, processed_payment_id) WHERE processed_payment_id IS NOT NULL
+Relaciones:
+* Conecta con PAYMENT_RECONCILIATION_BATCHES como padre
+* Puede conectar con PROCESSED_PAYMENTS para el pago original
+* Puede conectar con BANK_TRANSACTIONS para la transacci�n bancaria
+* Tracking de resoluci�n por CONTACTS
+�ndices Sugeridos:
+* idx_payment_reconciliation_details_batch (reconciliation_batch_id)
+* idx_payment_reconciliation_details_investigation (requires_investigation)
+
+3.20 KPI DASHBOARD (2 tablas)
+TABLA 169: FINANCIAL_KPI_DEFINITIONS
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n (NULL = global KPI)
+3. kpi_name (varchar(100)) - Nombre "Cash Conversion Cycle", "Gross Profit Margin"
+4. kpi_category (varchar(30)) - LIQUIDITY, PROFITABILITY, EFFICIENCY, GROWTH
+5. kpi_subcategory (varchar(50)) - WORKING_CAPITAL, MARGINS, TURNOVER, REVENUE
+6. calculation_formula (text) - F�rmula SQL o descripci�n del c�lculo
+7. data_sources (json) - Tablas/campos usados para el c�lculo
+8. target_value (decimal(12,2)) - Valor objetivo del KPI
+9. warning_threshold (decimal(12,2)) - Umbral de warning
+10. critical_threshold (decimal(12,2)) - Umbral cr�tico
+11. higher_is_better (boolean, DEFAULT TRUE) - Direcci�n de mejora
+12. unit_of_measure (varchar(20)) - PERCENTAGE, DAYS, DOLLARS, RATIO
+13. update_frequency (varchar(20)) - REAL_TIME, DAILY, WEEKLY, MONTHLY
+14. is_visible_on_dashboard (boolean, DEFAULT TRUE) - Visible en dashboard
+15. dashboard_section (varchar(50)) - Secci�n del dashboard
+16. chart_type (varchar(20)) - LINE, BAR, GAUGE, NUMBER, TREND
+17. color_coding_rules (json) - Reglas para colores basado en valores
+18. benchmark_industry_average (decimal(12,2)) - Promedio de la industria
+19. benchmark_top_quartile (decimal(12,2)) - Top quartile de la industria
+20. created_by_contact_id (int, FK ? CONTACTS) - Usuario que cre� el KPI
+21. is_active (boolean, DEFAULT TRUE) - KPI activo
+22. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+23. updated_at (timestamp, DEFAULT NOW()) - �ltima actualizaci�n del registro
+Restricciones �nicas:
+* UNIQUE(organization_id, kpi_name) - Nombre �nico por organizaci�n (NULL allowed)
+Relaciones:
+* Puede conectar con ORGANIZATIONS para KPIs espec�ficos
+* Tracking de creaci�n por CONTACTS
+* Usado por FINANCIAL_KPI_VALUES para c�lculos
+�ndices Sugeridos:
+* idx_financial_kpi_definitions_org_active (organization_id, is_active)
+* idx_financial_kpi_definitions_category (kpi_category, kpi_subcategory)
+
+TABLA 170: FINANCIAL_KPI_VALUES
+M�dulo: FINANZAS & BOOKKEEPING
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. kpi_definition_id (int, FK ? FINANCIAL_KPI_DEFINITIONS) - Definici�n del KPI
+3. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n del valor
+4. calculation_date (date) - Fecha del c�lculo
+5. calculation_time (time) - Hora del c�lculo
+6. calculated_value (decimal(12,2)) - Valor calculado del KPI
+7. previous_value (decimal(12,2)) - Valor del per�odo anterior
+8. variance_amount (decimal(12,2)) - Diferencia vs per�odo anterior
+9. variance_percentage (decimal(5,2)) - Porcentaje de variaci�n
+10. status (varchar(20)) - NORMAL, WARNING, CRITICAL, EXCELLENT
+11. trend_direction (varchar(10)) - UP, DOWN, STABLE
+12. trend_strength (varchar(20)) - STRONG, MODERATE, WEAK
+13. contributing_factors (json) - Factores que afectan el KPI
+14. calculation_inputs (json) - Inputs usados para el c�lculo
+15. benchmark_comparison (decimal(5,2)) - Comparaci�n vs benchmark (percentage)
+16. industry_percentile (decimal(5,2)) - Percentil vs industria
+17. forecast_next_period (decimal(12,2)) - Forecast para pr�ximo per�odo
+18. confidence_level (decimal(5,2)) - Confianza del c�lculo (0-100)
+19. calculation_method (varchar(30)) - AUTOMATED, MANUAL, HYBRID
+20. calculated_by_system (boolean, DEFAULT TRUE) - Calculado por sistema
+21. calculated_by_contact_id (int, FK ? CONTACTS) - Usuario que calcul� (manual)
+22. notes (text) - Notas adicionales del c�lculo
+23. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n del registro
+Restricciones �nicas:
+* UNIQUE(kpi_definition_id, organization_id, calculation_date, calculation_time)
+Relaciones:
+* Conecta con FINANCIAL_KPI_DEFINITIONS como definici�n
+* Conecta con ORGANIZATIONS para el contexto espec�fico
+* Tracking de c�lculo manual por CONTACTS
+* Usado para dashboards y trending analysis
+�ndices Sugeridos:
+* idx_financial_kpi_values_kpi_org_date (kpi_definition_id, organization_id, calculation_date)
+* idx_financial_kpi_values_status_date (status, calculation_date)
+* idx_financial_kpi_values_trend (trend_direction, calculation_date)

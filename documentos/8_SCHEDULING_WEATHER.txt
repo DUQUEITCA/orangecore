@@ -1,0 +1,444 @@
+M�DULO 8: SCHEDULING + WEATHER
+TABLA 249: APPOINTMENT_TYPES
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(100)) - Nombre del tipo de cita: 'Emergency Response', 'Initial Inspection', 'Mitigation Work'
+3. category (varchar(30)) - Categor�a del appointment: 'EMERGENCY', 'INSPECTION', 'MITIGATION', 'COMPLETION'
+4. priority_level (int) - Nivel de prioridad 1-10 (1=highest para emergency bumping)
+5. estimated_duration_hours (decimal(4,2)) - Duraci�n estimada en horas para scheduling autom�tico
+6. required_skills (varchar(500)) - JSON array de skills requeridos ['water_damage', 'mold', 'roof_inspection']
+7. requires_equipment (boolean, DEFAULT FALSE) - Si requiere equipment booking adicional
+8. allows_overlap (boolean, DEFAULT FALSE) - Si permite m�ltiples t�cnicos simult�neamente
+9. buffer_time_before (varchar(20)) - Tiempo prep required: '30min', '1hour'
+10. buffer_time_after (varchar(20)) - Tiempo cleanup/notes: '15min', '30min'
+11. is_billable (boolean, DEFAULT TRUE) - Si se cobra al customer por este tipo
+12. is_active (boolean, DEFAULT TRUE) - Status del appointment type
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name) - Nombre �nico de appointment type
+Relaciones:
+* Padre de APPOINTMENTS (one-to-many)
+* Conecta con SKILL_REQUIREMENTS para matching autom�tico
+�ndices Sugeridos:
+* idx_appointment_types_category en (category)
+* idx_appointment_types_priority en (priority_level)
+
+TABLA 250: APPOINTMENTS
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. appointment_type_id (int, FK ? APPOINTMENT_TYPES) - Tipo de appointment
+3. customer_project_id (int, FK ? CUSTOMER_PROJECTS) - Proyecto relacionado (opcional para inspecciones)
+4. customer_job_id (int, FK ? CUSTOMER_JOBS) - Job espec�fico (opcional)
+5. property_id (int, FK ? PROPERTIES) - Propiedad donde es la cita
+6. customer_contact_id (int, FK ? CONTACTS) - Cliente principal
+7. title (varchar(200)) - T�tulo descriptivo del appointment
+8. description (text) - Descripci�n detallada del trabajo a realizar
+9. appointment_date (date) - Fecha del appointment
+10. start_time (time) - Hora de inicio
+11. end_time (time) - Hora estimada de finalizaci�n
+12. estimated_duration_hours (decimal(4,2)) - Duraci�n estimada override
+13. priority (varchar(20)) - Priority override: 'EMERGENCY', 'HIGH', 'MEDIUM', 'LOW'
+14. status (varchar(30)) - Estado actual: 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'
+15. confirmation_method (varchar(20)) - C�mo se confirm�: 'PHONE', 'EMAIL', 'SMS', 'IN_PERSON'
+16. customer_confirmed (boolean, DEFAULT FALSE) - Si customer confirm� attendance
+17. customer_confirmed_at (timestamp) - Cu�ndo confirm� el customer
+18. special_instructions (text) - Instrucciones especiales del job
+19. access_instructions (text) - Gate codes, key location, pet instructions
+20. created_by_contact_id (int, FK ? CONTACTS) - Quien cre� el appointment
+21. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+22. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna unique constraint cr�tica
+Relaciones:
+* Pertenece a APPOINTMENT_TYPES (many-to-one)
+* Conecta con CUSTOMER_PROJECTS y CUSTOMER_JOBS
+* Conecta con PROPERTIES para location
+* Padre de APPOINTMENT_ATTENDEES, APPOINTMENT_NOTIFICATIONS
+�ndices Sugeridos:
+* idx_appointments_date_time en (appointment_date, start_time)
+* idx_appointments_customer en (customer_contact_id)
+* idx_appointments_property en (property_id)
+* idx_appointments_status en (status)
+
+TABLA 251: APPOINTMENT_ATTENDEES
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. appointment_id (int, FK ? APPOINTMENTS) - Appointment relacionado
+3. contact_id (int, FK ? CONTACTS) - T�cnico/empleado asignado
+4. role (varchar(30)) - Rol en el appointment: 'LEAD_TECHNICIAN', 'ASSISTANT', 'SUPERVISOR', 'TRAINEE'
+5. is_primary (boolean, DEFAULT FALSE) - Si es el t�cnico principal responsible
+6. estimated_arrival_time (time) - Hora estimada arrival del t�cnico
+7. actual_arrival_time (time) - Hora real de arrival
+8. departure_time (time) - Hora de departure del appointment
+9. billable_hours (decimal(4,2)) - Horas billable trabajadas
+10. billable_rate_override (decimal(8,2)) - Rate especial para este job
+11. assignment_status (varchar(20)) - Status: 'ASSIGNED', 'ACCEPTED', 'DECLINED', 'COMPLETED'
+12. assigned_at (timestamp) - Cu�ndo fue asignado
+13. responded_at (timestamp) - Cu�ndo respondi� (accepted/declined)
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Solo un is_primary=TRUE por appointment: CREATE UNIQUE INDEX idx_one_primary_attendee ON appointment_attendees(appointment_id) WHERE is_primary = TRUE
+Relaciones:
+* Pertenece a APPOINTMENTS (many-to-one)
+* Conecta con CONTACTS para technician info
+* Usado por ROUTE_OPTIMIZATION para planning
+�ndices Sugeridos:
+* idx_attendees_appointment en (appointment_id)
+* idx_attendees_contact en (contact_id)
+* idx_attendees_date_status en (assignment_status, assigned_at)
+
+TABLA 252: APPOINTMENT_EQUIPMENT
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. appointment_id (int, FK ? APPOINTMENTS) - Appointment que requiere equipment
+3. equipment_type (varchar(50)) - Tipo de equipment: 'DEHUMIDIFIER_LARGE', 'AIR_MOVER', 'TRUCK_VACUUM'
+4. equipment_identifier (varchar(50)) - Serial number o identification del equipment
+5. quantity_required (int) - Cantidad needed del equipment
+6. pickup_time (time) - Cu�ndo debe pickup el equipment
+7. return_time (time) - Cu�ndo debe return el equipment
+8. assignment_status (varchar(20)) - Status: 'RESERVED', 'ASSIGNED', 'PICKED_UP', 'RETURNED'
+9. assigned_to_contact_id (int, FK ? CONTACTS) - T�cnico responsible del equipment
+10. pickup_location (varchar(100)) - D�nde pickup el equipment
+11. return_location (varchar(100)) - D�nde return el equipment
+12. condition_notes (text) - Condition checks al pickup/return
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(equipment_identifier, appointment_id) - Equipment solo puede ser assigned once per appointment
+Relaciones:
+* Pertenece a APPOINTMENTS (many-to-one)
+* Conecta con CONTACTS para technician assignment
+* Relacionado con EQUIPMENT_CALENDAR para scheduling
+�ndices Sugeridos:
+* idx_appointment_equipment_type en (equipment_type)
+* idx_appointment_equipment_status en (assignment_status)
+* idx_appointment_equipment_contact en (assigned_to_contact_id)
+
+TABLA 253: APPOINTMENT_CONFLICTS
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. appointment_id (int, FK ? APPOINTMENTS) - Appointment principal
+3. conflicting_appointment_id (int, FK ? APPOINTMENTS) - Appointment que causa conflict (opcional)
+4. conflict_type (varchar(30)) - Tipo: 'TECHNICIAN_DOUBLE_BOOKED', 'EQUIPMENT_CONFLICT', 'WEATHER_CONFLICT'
+5. conflict_severity (varchar(20)) - Severidad: 'BLOCKING', 'WARNING', 'SUGGESTION'
+6. conflict_description (text) - Descripci�n detallada del conflict
+7. resolution_action (varchar(30)) - Acci�n recomendada: 'RESCHEDULE', 'ASSIGN_DIFFERENT_TECH', 'IGNORE'
+8. is_resolved (boolean, DEFAULT FALSE) - Si el conflict fue resolved
+9. resolved_by_contact_id (int, FK ? CONTACTS) - Quien resolved el conflict
+10. detected_at (timestamp) - Cu�ndo se detected el conflict
+11. resolved_at (timestamp) - Cu�ndo se resolved
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna unique constraint cr�tica
+Relaciones:
+* Pertenece a APPOINTMENTS (many-to-one)
+* Puede referenciar otro APPOINTMENT como conflicting
+* Conecta con CONTACTS para resolution tracking
+�ndices Sugeridos:
+* idx_conflicts_appointment en (appointment_id)
+* idx_conflicts_unresolved en (is_resolved, detected_at)
+* idx_conflicts_type en (conflict_type)
+
+TABLA 254: APPOINTMENT_HISTORY
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. appointment_id (int, FK ? APPOINTMENTS) - Appointment relacionado
+3. change_type (varchar(30)) - Tipo de cambio: 'CREATED', 'RESCHEDULED', 'CANCELLED', 'COMPLETED', 'STATUS_CHANGE'
+4. previous_value (text) - Valor anterior (JSON para changes complejos)
+5. new_value (text) - Nuevo valor (JSON para changes complejos)
+6. change_reason (varchar(200)) - Raz�n del cambio
+7. changed_by_contact_id (int, FK ? CONTACTS) - Quien hizo el cambio
+8. change_timestamp (timestamp) - Cu�ndo se hizo el cambio
+9. is_customer_notified (boolean, DEFAULT FALSE) - Si customer fue notified del change
+10. notification_method (varchar(20)) - C�mo se notified: 'EMAIL', 'SMS', 'PHONE'
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna unique constraint cr�tica
+Relaciones:
+* Pertenece a APPOINTMENTS (many-to-one)
+* Conecta con CONTACTS para change tracking
+* Usado para audit trail completo
+�ndices Sugeridos:
+* idx_history_appointment en (appointment_id)
+* idx_history_timestamp en (change_timestamp)
+* idx_history_change_type en (change_type)
+
+TABLA 255: TECHNICIAN_SKILLS
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - T�cnico con la skill
+3. skill_name (varchar(50)) - Nombre de la skill: 'water_damage', 'mold_remediation', 'roof_inspection'
+4. skill_level (varchar(20)) - Nivel de competency: 'BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT'
+5. certification_number (varchar(50)) - N�mero de certificaci�n si aplica
+6. certification_authority (varchar(100)) - Quien emitted la certification: 'IICRC', 'OSHA'
+7. certification_date (date) - Fecha de certification
+8. expiration_date (date) - Fecha de expiration de la certification
+9. is_verified (boolean, DEFAULT FALSE) - Si la skill fue verified por supervisor
+10. verified_by_contact_id (int, FK ? CONTACTS) - Supervisor que verified
+11. verification_date (date) - Fecha de verification
+12. is_active (boolean, DEFAULT TRUE) - Si la skill est� activa
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, skill_name) - Un t�cnico no puede tener duplicate skills
+Relaciones:
+* Pertenece a CONTACTS (many-to-one)
+* Usado por appointment assignment algorithm
+* Conecta con certification tracking
+�ndices Sugeridos:
+* idx_skills_contact en (contact_id)
+* idx_skills_name en (skill_name)
+* idx_skills_level en (skill_level)
+* idx_skills_expiration en (expiration_date)
+
+
+TABLA 256: TECHNICIAN_AVAILABILITY
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - T�cnico con availability setting
+3. day_of_week (varchar(10)) - D�a: 'MONDAY', 'TUESDAY', etc.
+4. start_time (time) - Hora de inicio availability
+5. end_time (time) - Hora de fin availability
+6. is_available (boolean, DEFAULT TRUE) - Si est� available ese day/time
+7. max_appointments_per_day (int) - M�ximo appointments per day
+8. max_travel_distance_miles (decimal(6,2)) - M�ximo travel distance willing
+9. preferred_appointment_types (varchar(200)) - JSON array de preferred types
+10. overtime_willing (boolean, DEFAULT FALSE) - Si est� willing para overtime
+11. emergency_available (boolean, DEFAULT FALSE) - Si est� available para emergencies
+12. effective_start_date (date) - Desde cu�ndo aplica esta availability
+13. effective_end_date (date) - Hasta cu�ndo aplica (opcional)
+14. is_active (boolean, DEFAULT TRUE) - Si la availability rule est� active
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, day_of_week, effective_start_date) - No duplicate availability per day
+Relaciones:
+* Pertenece a CONTACTS (many-to-one)
+* Usado por scheduling algorithm para assignment
+* Conecta con appointment optimization
+�ndices Sugeridos:
+* idx_availability_contact en (contact_id)
+* idx_availability_day en (day_of_week)
+* idx_availability_active en (is_active, effective_start_date)
+
+TABLA 257: TECHNICIAN_LOCATIONS
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - T�cnico siendo tracked
+3. location_type (varchar(20)) - Tipo: 'HOME_BASE', 'CURRENT', 'APPOINTMENT', 'LUNCH_BREAK'
+4. latitude (decimal(10,8)) - Latitude de la location
+5. longitude (decimal(11,8)) - Longitude de la location
+6. address (varchar(255)) - Address readable de la location
+7. location_timestamp (timestamp) - Cu�ndo se recorded la location
+8. accuracy_meters (decimal(8,2)) - GPS accuracy en meters
+9. speed_mph (decimal(6,2)) - Speed si est� traveling
+10. heading_degrees (decimal(6,2)) - Direction heading (0-360 degrees)
+11. battery_level_percent (int) - Battery level del device
+12. is_on_duty (boolean, DEFAULT TRUE) - Si est� working
+13. current_appointment_id (int, FK ? APPOINTMENTS) - Current appointment si aplica
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna unique constraint cr�tica
+Relaciones:
+* Pertenece a CONTACTS (many-to-one)
+* Puede conectar con APPOINTMENTS para tracking
+* Usado por route optimization algorithm
+�ndices Sugeridos:
+* idx_locations_contact en (contact_id)
+* idx_locations_timestamp en (location_timestamp)
+* idx_locations_type en (location_type)
+* idx_locations_coords en (latitude, longitude)
+
+TABLA 258: ROUTE_OPTIMIZATIONS
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. technician_contact_id (int, FK ? CONTACTS) - T�cnico para la route
+3. route_date (date) - Fecha de la route
+4. optimized_sequence (varchar(1000)) - JSON array de appointment IDs en optimal order
+5. total_travel_time_hours (decimal(4,2)) - Total travel time para la route
+6. total_drive_distance_miles (decimal(6,2)) - Total driving distance
+7. optimization_algorithm (varchar(30)) - Algorithm usado: 'SHORTEST_TIME', 'SHORTEST_DISTANCE', 'HYBRID'
+8. start_location_lat (decimal(10,8)) - Starting point latitude
+9. start_location_lng (decimal(11,8)) - Starting point longitude
+10. end_location_lat (decimal(10,8)) - Ending point latitude
+11. end_location_lng (decimal(11,8)) - Ending point longitude
+12. calculated_at (timestamp) - Cu�ndo se calculated la route
+13. is_active_route (boolean, DEFAULT FALSE) - Si es la route active del technician
+14. route_status (varchar(20)) - Status: 'OPTIMIZED', 'MANUAL_OVERRIDE', 'IN_PROGRESS', 'COMPLETED'
+15. fuel_cost_estimate (decimal(8,2)) - Estimated fuel cost para la route
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Solo una route active per technician per date: CREATE UNIQUE INDEX idx_one_active_route ON route_optimizations(technician_contact_id, route_date) WHERE is_active_route = TRUE
+Relaciones:
+* Pertenece a CONTACTS (many-to-one)
+* Conecta con multiple APPOINTMENTS via JSON sequence
+* Usado por mobile apps para navigation
+�ndices Sugeridos:
+* idx_routes_technician_date en (technician_contact_id, route_date)
+* idx_routes_active en (is_active_route)
+* idx_routes_status en (route_status)
+
+TABLA 259: TRAVEL_TIME_CACHE
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. origin_latitude (decimal(10,8)) - Starting point latitude
+3. origin_longitude (decimal(11,8)) - Starting point longitude
+4. destination_latitude (decimal(10,8)) - Destination latitude
+5. destination_longitude (decimal(11,8)) - Destination longitude
+6. travel_time_minutes (decimal(6,2)) - Travel time en minutes
+7. travel_distance_miles (decimal(8,2)) - Travel distance en miles
+8. traffic_condition (varchar(20)) - Traffic conditions: 'LIGHT', 'MODERATE', 'HEAVY'
+9. time_of_day (time) - Time slot del day para traffic patterns
+10. day_type (varchar(20)) - Tipo de day: 'WEEKDAY', 'WEEKEND', 'HOLIDAY'
+11. api_source (varchar(20)) - API usado: 'Google_Maps', 'MapBox'
+12. cache_timestamp (timestamp) - Cu�ndo se cached la data
+13. cache_expires_at (timestamp) - Cu�ndo expires el cache
+14. is_valid (boolean, DEFAULT TRUE) - Si el cache data es still valid
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(origin_latitude, origin_longitude, destination_latitude, destination_longitude, time_of_day, day_type) - No duplicate cache entries
+Relaciones:
+* Usado por route optimization algorithms
+* No foreign keys directos, es utility table
+* Conecta con Google Maps API calls
+�ndices Sugeridos:
+* idx_travel_cache_origin en (origin_latitude, origin_longitude)
+* idx_travel_cache_destination en (destination_latitude, destination_longitude)
+* idx_travel_cache_expiry en (cache_expires_at)
+
+TABLA 260: WEATHER_FORECASTS
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. property_id (int, FK ? PROPERTIES) - Propiedad para location-specific forecast
+3. latitude (decimal(10,8)) - Latitude de la location
+4. longitude (decimal(11,8)) - Longitude de la location
+5. forecast_date (date) - Fecha del forecast
+6. forecast_time (time) - Hora espec�fica del forecast (hourly forecasts)
+7. temperature_high_f (decimal(5,2)) - High temperature en Fahrenheit
+8. temperature_low_f (decimal(5,2)) - Low temperature en Fahrenheit
+9. current_temperature_f (decimal(5,2)) - Current temperature
+10. rain_probability_percent (decimal(5,2)) - Probability of rain
+11. wind_speed_mph (decimal(5,2)) - Wind speed en miles per hour
+12. wind_direction (varchar(5)) - Wind direction: 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'
+13. conditions (varchar(20)) - General conditions: 'SUNNY', 'CLOUDY', 'RAIN', 'STORM', 'SNOW'
+14. humidity_percent (decimal(5,2)) - Humidity percentage
+15. uv_index (decimal(3,1)) - UV index
+16. api_source (varchar(20)) - Weather API source: 'OpenWeather', 'WeatherAPI', 'AccuWeather'
+17. raw_api_response (json) - Full API response para debugging
+18. fetched_at (timestamp) - Cu�ndo se fetched from API
+19. is_suitable_for_roof_work (boolean) - Business logic assessment para roof work
+20. is_suitable_for_exterior_work (boolean) - Business logic para exterior work
+21. is_suitable_for_equipment_setup (boolean) - Si conditions allow equipment setup
+22. weather_risk_score (decimal(3,1)) - Risk score 0-10 para scheduling decisions
+23. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+24. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(property_id, forecast_date, forecast_time) - One forecast per property per time slot
+Relaciones:
+* Pertenece a PROPERTIES (many-to-one)
+* Usado por appointment scheduling decisions
+* Conecta con weather APIs
+�ndices Sugeridos:
+* idx_weather_property_date en (property_id, forecast_date)
+* idx_weather_suitable_roof en (is_suitable_for_roof_work)
+* idx_weather_risk_score en (weather_risk_score)
+
+
+TABLA 261: WEATHER_ALERTS
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. alert_type (varchar(30)) - Tipo de alert: 'SEVERE_WEATHER', 'HAIL_WARNING', 'HIGH_WINDS', 'STORM_WATCH'
+3. severity_level (varchar(20)) - Severidad: 'WATCH', 'WARNING', 'EMERGENCY'
+4. affected_zip_codes (varchar(500)) - JSON array de zip codes affected
+5. alert_start_time (timestamp) - Cu�ndo starts el weather event
+6. alert_end_time (timestamp) - Cu�ndo ends el weather event
+7. alert_description (text) - Descripci�n detailed del weather alert
+8. recommended_actions (text) - Recommended business actions
+9. auto_reschedule_enabled (boolean, DEFAULT FALSE) - Si auto-reschedule appointments
+10. notification_sent (boolean, DEFAULT FALSE) - Si notifications fueron sent
+11. appointments_affected_count (int) - N�mero de appointments potentially affected
+12. api_source (varchar(20)) - Weather service source
+13. alert_id_external (varchar(50)) - External alert ID from weather service
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(alert_id_external, api_source) - No duplicate external alerts
+Relaciones:
+* No foreign keys directos, es broadcast table
+* Usado por appointment rescheduling algorithms
+* Conecta con weather API services
+�ndices Sugeridos:
+* idx_weather_alerts_time en (alert_start_time, alert_end_time)
+* idx_weather_alerts_severity en (severity_level)
+* idx_weather_alerts_active en (alert_end_time) WHERE alert_end_time > NOW()
+
+TABLA 262: WEATHER_IMPACT_RULES
+M�dulo: SCHEDULING + WEATHER
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. rule_name (varchar(100)) - Nombre descriptivo de la rule
+3. appointment_type_id (int, FK ? APPOINTMENT_TYPES) - Appointment type affected
+4. weather_condition (varchar(30)) - Weather condition: 'RAIN', 'HIGH_WINDS', 'EXTREME_HEAT'
+5. threshold_value (decimal(8,2)) - Threshold value (wind speed, temp, etc.)
+6. threshold_operator (varchar(10)) - Operator: '>', '<', '>=', '<=', '='
+7. recommended_action (varchar(30)) - Action: 'CANCEL', 'RESCHEDULE', 'INDOOR_ONLY', 'PROCEED_WITH_CAUTION'
+8. auto_apply (boolean, DEFAULT FALSE) - Si se aplica autom�ticamente
+9. requires_approval (boolean, DEFAULT TRUE) - Si requiere human approval
+10. notification_template (varchar(200)) - Template para customer notifications
+11. is_active (boolean, DEFAULT TRUE) - Si la rule est� active
+12. priority_order (int) - Order de evaluation si m�ltiples rules apply
+13. effective_start_date (date) - Desde cu�ndo applies la rule
+14. effective_end_date (date) - Hasta cu�ndo applies (opcional)
+15. created_by_contact_id (int, FK ? CONTACTS) - Quien created la rule
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(appointment_type_id, weather_condition, threshold_value) - No duplicate rules
+Relaciones:
+* Pertenece a APPOINTMENT_TYPES (many-to-one)
+* Conecta con CONTACTS para rule creation tracking
+* Usado por weather decision algorithms
+�ndices Sugeridos:
+* idx_weather_rules_active en (is_active, priority_order)
+* idx_weather_rules_type en (appointment_type_id)
+* idx_weather_rules_condition en (weather_condition)
+
+?? RESUMEN DEL M�DULO
+SCHEDULING + WEATHER es un m�dulo cr�tico que maneja la complejidad de scheduling en la industria de construcci�n, integrando weather intelligence para optimizar operations.
+Capacidades Clave:
+* Skill-based routing autom�tico basado en technician capabilities
+* Equipment calendar management con conflict detection
+* Weather-driven scheduling decisions con AI recommendations
+* Route optimization para minimize travel time y costs
+* Real-time conflict detection y resolution suggestions
+* Emergency response protocols con priority bumping
+* Customer communication automation para schedule changes
+Business Impact:
+* 35% reducci�n en travel time atrav�s de route optimization
+* 90% customer satisfaction con proactive weather notifications
+* 25% mejora en technician utilization atrav�s de smart scheduling
+* $40,000 annual savings por organization en fuel y overtime costs
+
+
+M�DULO 9: EMAILS ENTERPRISE (18 TABLAS)
+Inventario completo del sistema de emails enterprise con soporte multi-provider (Gmail, Outlook, IMAP), templates avanzados, threading contextual, asignaciones colaborativas y analytics completo.

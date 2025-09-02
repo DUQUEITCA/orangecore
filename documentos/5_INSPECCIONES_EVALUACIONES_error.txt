@@ -1,0 +1,40 @@
+orangecore_db=# CREATE TABLE inspecciones_evaluaciones.inspections (
+orangecore_db(#     id SERIAL PRIMARY KEY,
+orangecore_db(#     customer_project_id INTEGER,
+orangecore_db(#     inspection_type_id INTEGER NOT NULL,
+orangecore_db(#     iicrc_standard_id INTEGER,
+orangecore_db(#     inspector_contact_id INTEGER,
+orangecore_db(#     inspection_status VARCHAR(30) DEFAULT 'Scheduled',
+orangecore_db(#     inspection_date DATE,
+orangecore_db(#     start_time TIME,
+orangecore_db(#     end_time TIME,
+orangecore_db(#     general_notes TEXT,
+orangecore_db(#     weather_conditions JSON,
+orangecore_db(#     safety_concerns VARCHAR(255),
+orangecore_db(#     requires_follow_up BOOLEAN DEFAULT FALSE,
+orangecore_db(#     follow_up_date DATE,
+orangecore_db(#     created_at TIMESTAMP DEFAULT NOW(),
+orangecore_db(#     updated_at TIMESTAMP DEFAULT NOW(),
+orangecore_db(#     CONSTRAINT fk_inspections_project FOREIGN KEY (customer_project_id) REFERENCES base_foundation.customer_projects(id),
+orangecore_db(#     CONSTRAINT fk_inspections_type FOREIGN KEY (inspection_type_id) REFERENCES inspecciones_evaluaciones.inspection_types(id),
+orangecore_db(#     CONSTRAINT fk_inspections_standard FOREIGN KEY (iicrc_standard_id) REFERENCES inspecciones_evaluaciones.iicrc_standards(id),
+orangecore_db(#     CONSTRAINT fk_inspections_inspector FOREIGN KEY (inspector_contact_id) REFERENCES base_foundation.contacts(id)
+orangecore_db(# );
+ERROR:  relation "base_foundation.customer_projects" does not exist
+orangecore_db=#
+orangecore_db=# -- TABLA: INSPECTION_AREAS [cite: 6, 7, 8]
+orangecore_db=# CREATE TABLE inspecciones_evaluaciones.inspection_areas (
+orangecore_db(#     id SERIAL PRIMARY KEY,
+orangecore_db(#     inspection_id INTEGER NOT NULL,
+orangecore_db(#     area_name VARCHAR(100),
+orangecore_db(#     area_type VARCHAR(50),
+orangecore_db(#     location_description VARCHAR(255),
+orangecore_db(#     area_measurements JSON,
+orangecore_db(#     access_restrictions VARCHAR(255),
+orangecore_db(#     area_notes TEXT,
+orangecore_db(#     order_sequence INTEGER,
+orangecore_db(#     created_at TIMESTAMP DEFAULT NOW(),
+orangecore_db(#     updated_at TIMESTAMP DEFAULT NOW(),
+orangecore_db(#     CONSTRAINT fk_inspection_areas_inspection FOREIGN KEY (inspection_id) REFERENCES inspecciones_evaluaciones.inspections(id)
+orangecore_db(# );
+ERROR:  relation "inspecciones_evaluaciones.inspections" does not exist

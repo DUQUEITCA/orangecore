@@ -1,0 +1,324 @@
+A continuación se presenta el DDL completo para el módulo de **CHAT ENTERPRISE + AGORA**, que incluye la creación del esquema, todas las tablas y sus relaciones, asegurando el manejo correcto de las dependencias preexistentes.
+
+-----
+
+### 1\. Creación del Esquema `chat_enterprise_agora`
+
+Primero, se crea el esquema que contendrá todas las tablas del módulo.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS chat_enterprise_agora;
+SET search_path TO chat_enterprise_agora;
+```
+
+-----
+
+### 2\. Definición de Tablas y sus Relaciones
+
+Las tablas se definen en un orden que permite que las llaves foráneas (`FOREIGN KEYS`) se referencien correctamente. Las dependencias externas se vinculan a los esquemas `base_foundation` y `documents`.
+
+```sql
+-- TABLA 282: CHAT_CHANNEL_TYPES
+-- Define los tipos de canales de chat (DM, CORPORATE, etc.).
+CREATE TABLE chat_enterprise_agora.chat_channel_types (
+    id SERIAL PRIMARY KEY,
+    type_name VARCHAR(50) NOT NULL UNIQUE,
+    display_name VARCHAR(100),
+    description TEXT,
+    default_permissions JSON,
+    max_members INTEGER,
+    supports_ai_agents BOOLEAN DEFAULT FALSE,
+    supports_video_calls BOOLEAN DEFAULT TRUE,
+    is_system_type BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para optimización
+CREATE INDEX idx_chat_channel_types_system ON chat_enterprise_agora.chat_channel_types (is_system_type);
+
+-- TABLA 281: CHAT_CHANNELS
+-- Canales de chat de la organización.
+CREATE TABLE chat_enterprise_agora.chat_channels (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER,
+    channel_name VARCHAR(100) NOT NULL,
+    channel_type VARCHAR(20) NOT NULL,
+    description TEXT,
+    created_by_contact_id INTEGER,
+    is_archived BOOLEAN DEFAULT FALSE,
+    channel_avatar_url VARCHAR(500),
+    channel_settings JSON,
+    ai_agent_enabled BOOLEAN DEFAULT FALSE,
+    ai_agent_type VARCHAR(30),
+    signalr_group_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, channel_name),
+    CONSTRAINT fk_chat_channels_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_chat_channels_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_chat_channels_org_type ON chat_enterprise_agora.chat_channels (organization_id, channel_type);
+CREATE INDEX idx_chat_channels_signalr ON chat_enterprise_agora.chat_channels (signalr_group_id);
+
+-- TABLA 283: CHAT_CHANNEL_MEMBERS
+-- Miembros de cada canal.
+CREATE TABLE chat_enterprise_agora.chat_channel_members (
+    id SERIAL PRIMARY KEY,
+    chat_channel_id INTEGER NOT NULL,
+    contact_id INTEGER NOT NULL,
+    member_role VARCHAR(20),
+    can_add_members BOOLEAN DEFAULT FALSE,
+    can_delete_messages BOOLEAN DEFAULT FALSE,
+    can_moderate BOOLEAN DEFAULT FALSE,
+    is_muted BOOLEAN DEFAULT FALSE,
+    joined_at TIMESTAMP,
+    last_read_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    notification_level VARCHAR(20),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(chat_channel_id, contact_id),
+    CONSTRAINT fk_chat_members_channel FOREIGN KEY (chat_channel_id) REFERENCES chat_enterprise_agora.chat_channels(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_members_contact FOREIGN KEY (contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_chat_members_contact ON chat_enterprise_agora.chat_channel_members (contact_id, is_active);
+CREATE INDEX idx_chat_members_last_read ON chat_enterprise_agora.chat_channel_members (chat_channel_id, last_read_at);
+
+-- TABLA 284: CHAT_MESSAGES
+-- Almacena los mensajes de chat.
+CREATE TABLE chat_enterprise_agora.chat_messages (
+    id SERIAL PRIMARY KEY,
+    chat_channel_id INTEGER NOT NULL,
+    sender_contact_id INTEGER,
+    sender_type VARCHAR(20),
+    message_type VARCHAR(30),
+    message_content TEXT,
+    original_language VARCHAR(5),
+    translated_content JSON,
+    voice_note_url VARCHAR(500),
+    voice_transcript TEXT,
+    voice_duration_seconds DECIMAL(6,2),
+    replied_to_message_id INTEGER,
+    is_edited BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    edited_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+    ai_confidence DECIMAL(5,2),
+    signalr_message_id VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_chat_messages_channel FOREIGN KEY (chat_channel_id) REFERENCES chat_enterprise_agora.chat_channels(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_messages_sender FOREIGN KEY (sender_contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_chat_messages_reply FOREIGN KEY (replied_to_message_id) REFERENCES chat_enterprise_agora.chat_messages(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_chat_messages_channel_time ON chat_enterprise_agora.chat_messages (chat_channel_id, created_at DESC);
+CREATE INDEX idx_chat_messages_sender ON chat_enterprise_agora.chat_messages (sender_contact_id, created_at DESC);
+CREATE INDEX idx_chat_messages_thread ON chat_enterprise_agora.chat_messages (replied_to_message_id);
+
+-- TABLA 285: CHAT_MESSAGE_REACTIONS
+-- Reacciones a los mensajes de chat.
+CREATE TABLE chat_enterprise_agora.chat_message_reactions (
+    id SERIAL PRIMARY KEY,
+    chat_message_id INTEGER NOT NULL,
+    contact_id INTEGER NOT NULL,
+    reaction_type VARCHAR(50) NOT NULL,
+    emoji_code VARCHAR(20),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(chat_message_id, contact_id, reaction_type),
+    CONSTRAINT fk_chat_reactions_message FOREIGN KEY (chat_message_id) REFERENCES chat_enterprise_agora.chat_messages(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_reactions_contact FOREIGN KEY (contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_chat_reactions_message ON chat_enterprise_agora.chat_message_reactions (chat_message_id, is_active);
+CREATE INDEX idx_chat_reactions_contact ON chat_enterprise_agora.chat_message_reactions (contact_id);
+
+-- TABLA 286: CHAT_MESSAGE_THREADS
+-- Mapeo de mensajes padre-hijo para hilos de conversación.
+CREATE TABLE chat_enterprise_agora.chat_message_threads (
+    id SERIAL PRIMARY KEY,
+    parent_message_id INTEGER NOT NULL,
+    thread_message_id INTEGER NOT NULL,
+    thread_level INTEGER DEFAULT 1,
+    thread_position INTEGER,
+    is_thread_starter BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(parent_message_id, thread_message_id),
+    CONSTRAINT fk_chat_threads_parent FOREIGN KEY (parent_message_id) REFERENCES chat_enterprise_agora.chat_messages(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_threads_message FOREIGN KEY (thread_message_id) REFERENCES chat_enterprise_agora.chat_messages(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_chat_threads_parent ON chat_enterprise_agora.chat_message_threads (parent_message_id, thread_position);
+CREATE INDEX idx_chat_threads_level ON chat_enterprise_agora.chat_message_threads (thread_level);
+
+-- TABLA 287: CHAT_ATTACHMENTS
+-- Archivos adjuntos a los mensajes.
+CREATE TABLE chat_enterprise_agora.chat_attachments (
+    id SERIAL PRIMARY KEY,
+    chat_message_id INTEGER NOT NULL,
+    file_name VARCHAR(255),
+    file_url VARCHAR(500),
+    file_type VARCHAR(50),
+    file_size_bytes BIGINT,
+    mime_type VARCHAR(100),
+    thumbnail_url VARCHAR(500),
+    is_encrypted BOOLEAN DEFAULT FALSE,
+    encryption_key VARCHAR(255),
+    upload_status VARCHAR(20) DEFAULT 'PENDING',
+    virus_scan_status VARCHAR(20) DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_chat_attachments_message FOREIGN KEY (chat_message_id) REFERENCES chat_enterprise_agora.chat_messages(id) ON DELETE CASCADE
+);
+
+-- Índices para optimización
+CREATE INDEX idx_chat_attachments_message ON chat_enterprise_agora.chat_attachments (chat_message_id);
+CREATE INDEX idx_chat_attachments_type ON chat_enterprise_agora.chat_attachments (file_type, upload_status);
+
+-- TABLA 288: CHAT_MENTIONS
+-- Menciones de usuarios en mensajes.
+CREATE TABLE chat_enterprise_agora.chat_mentions (
+    id SERIAL PRIMARY KEY,
+    chat_message_id INTEGER NOT NULL,
+    mentioned_contact_id INTEGER NOT NULL,
+    mention_type VARCHAR(20),
+    mention_text VARCHAR(100),
+    notification_sent BOOLEAN DEFAULT FALSE,
+    notification_read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(chat_message_id, mentioned_contact_id),
+    CONSTRAINT fk_chat_mentions_message FOREIGN KEY (chat_message_id) REFERENCES chat_enterprise_agora.chat_messages(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_mentions_contact FOREIGN KEY (mentioned_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_chat_mentions_contact ON chat_enterprise_agora.chat_mentions (mentioned_contact_id, notification_read);
+CREATE INDEX idx_chat_mentions_message ON chat_enterprise_agora.chat_mentions (chat_message_id);
+
+-- TABLA 289: AI_CHAT_AGENTS
+-- Agentes de inteligencia artificial para chat.
+CREATE TABLE chat_enterprise_agora.ai_chat_agents (
+    id SERIAL PRIMARY KEY,
+    agent_name VARCHAR(100) NOT NULL,
+    agent_type VARCHAR(30),
+    organization_id INTEGER,
+    personality_config JSON,
+    capabilities JSON,
+    training_data_source VARCHAR(100),
+    language_support JSON,
+    response_style VARCHAR(50),
+    confidence_threshold DECIMAL(5,2),
+    is_active BOOLEAN DEFAULT TRUE,
+    learning_enabled BOOLEAN DEFAULT TRUE,
+    max_context_messages INTEGER DEFAULT 50,
+    created_by_contact_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(organization_id, agent_name),
+    CONSTRAINT fk_ai_agents_org FOREIGN KEY (organization_id) REFERENCES base_foundation.organizations(id),
+    CONSTRAINT fk_ai_agents_creator FOREIGN KEY (created_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_ai_agents_org_type ON chat_enterprise_agora.ai_chat_agents (organization_id, agent_type, is_active);
+
+-- TABLA 290: AI_AGENT_KNOWLEDGE
+-- Base de conocimiento de los agentes AI.
+CREATE TABLE chat_enterprise_agora.ai_agent_knowledge (
+    id SERIAL PRIMARY KEY,
+    ai_agent_id INTEGER NOT NULL,
+    knowledge_type VARCHAR(30),
+    knowledge_category VARCHAR(50),
+    question_pattern TEXT,
+    answer_content TEXT,
+    confidence_score DECIMAL(5,2),
+    usage_count INTEGER DEFAULT 0,
+    last_used_at TIMESTAMP,
+    source_document_id INTEGER,
+    is_verified BOOLEAN DEFAULT FALSE,
+    verified_by_contact_id INTEGER,
+    expires_at TIMESTAMP,
+    tags JSON,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_ai_knowledge_agent FOREIGN KEY (ai_agent_id) REFERENCES chat_enterprise_agora.ai_chat_agents(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ai_knowledge_source_doc FOREIGN KEY (source_document_id) REFERENCES documents.documents(id),
+    CONSTRAINT fk_ai_knowledge_verifier FOREIGN KEY (verified_by_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_ai_knowledge_agent_category ON chat_enterprise_agora.ai_agent_knowledge (ai_agent_id, knowledge_category);
+CREATE INDEX idx_ai_knowledge_usage ON chat_enterprise_agora.ai_agent_knowledge (usage_count DESC, last_used_at DESC);
+
+-- TABLA 291: AI_AGENT_CONVERSATIONS
+-- Registra conversaciones entre usuarios y agentes AI.
+CREATE TABLE chat_enterprise_agora.ai_agent_conversations (
+    id SERIAL PRIMARY KEY,
+    ai_agent_id INTEGER NOT NULL,
+    chat_channel_id INTEGER,
+    user_contact_id INTEGER NOT NULL,
+    conversation_start_message_id INTEGER,
+    conversation_status VARCHAR(20),
+    conversation_topic VARCHAR(100),
+    context_data JSON,
+    user_satisfaction_score DECIMAL(3,2),
+    resolution_type VARCHAR(30),
+    escalated_to_contact_id INTEGER,
+    total_messages INTEGER DEFAULT 0,
+    ai_response_time_avg DECIMAL(6,2),
+    started_at TIMESTAMP DEFAULT NOW(),
+    ended_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_ai_conv_agent FOREIGN KEY (ai_agent_id) REFERENCES chat_enterprise_agora.ai_chat_agents(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ai_conv_channel FOREIGN KEY (chat_channel_id) REFERENCES chat_enterprise_agora.chat_channels(id),
+    CONSTRAINT fk_ai_conv_user FOREIGN KEY (user_contact_id) REFERENCES base_foundation.contacts(id),
+    CONSTRAINT fk_ai_conv_start_msg FOREIGN KEY (conversation_start_message_id) REFERENCES chat_enterprise_agora.chat_messages(id),
+    CONSTRAINT fk_ai_conv_escalation FOREIGN KEY (escalated_to_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_ai_conversations_agent_status ON chat_enterprise_agora.ai_agent_conversations (ai_agent_id, conversation_status);
+CREATE INDEX idx_ai_conversations_user ON chat_enterprise_agora.ai_agent_conversations (user_contact_id, started_at DESC);
+CREATE INDEX idx_ai_conversations_satisfaction ON chat_enterprise_agora.ai_agent_conversations (user_satisfaction_score, resolution_type);
+
+-- TABLA 292: AI_AGENT_TRAINING_SESSIONS
+-- Registra sesiones de entrenamiento para agentes AI.
+CREATE TABLE chat_enterprise_agora.ai_agent_training_sessions (
+    id SERIAL PRIMARY KEY,
+    ai_agent_id INTEGER NOT NULL,
+    training_type VARCHAR(30),
+    training_data JSON,
+    training_source VARCHAR(50),
+    conversation_id INTEGER,
+    feedback_type VARCHAR(30),
+    feedback_details TEXT,
+    trainer_contact_id INTEGER,
+    training_effectiveness DECIMAL(5,2),
+    applied_at TIMESTAMP,
+    model_version_before VARCHAR(50),
+    model_version_after VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_ai_training_agent FOREIGN KEY (ai_agent_id) REFERENCES chat_enterprise_agora.ai_chat_agents(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ai_training_conv FOREIGN KEY (conversation_id) REFERENCES chat_enterprise_agora.ai_agent_conversations(id),
+    CONSTRAINT fk_ai_training_trainer FOREIGN KEY (trainer_contact_id) REFERENCES base_foundation.contacts(id)
+);
+
+-- Índices para optimización
+CREATE INDEX idx_ai_training_agent_type ON chat_enterprise_agora.ai_agent_training_sessions (ai_agent_id, training_type);
+CREATE INDEX idx_ai_training_source ON chat_enterprise_agora.ai_agent_training_sessions (training_source);
+```

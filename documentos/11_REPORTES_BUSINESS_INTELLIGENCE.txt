@@ -1,0 +1,626 @@
+M�DULO 11: REPORTES Y BUSINESS INTELLIGENCE
+Estado: COMPLETADO - 20 tablas implementadas
+
+TABLA 310: DASHBOARD_DEFINITIONS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - NULL para templates globales
+3. dashboard_name (varchar(100)) - 'Executive Overview', 'Sales Performance'
+4. dashboard_category (varchar(50)) - 'EXECUTIVE', 'OPERATIONAL', 'FINANCIAL'
+5. target_audience (varchar(30)) - 'C_LEVEL', 'MANAGERS', 'EMPLOYEES'
+6. layout_config (json) - Grid layout, responsive settings
+7. filter_defaults (json) - Default date ranges, organization filters
+8. is_public (boolean, DEFAULT FALSE) - Dashboard p�blicamente accesible
+9. is_template (boolean, DEFAULT FALSE) - Plantilla reutilizable
+10. created_by_contact_id (int, FK ? CONTACTS) - Creador del dashboard
+11. is_active (boolean, DEFAULT TRUE) - Dashboard activo
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, dashboard_name) - Nombre �nico por organizaci�n
+Relaciones:
+* FK ? ORGANIZATIONS para multi-tenancy
+* FK ? CONTACTS para auditor�a y ownership
+* Relacionado con DASHBOARD_WIDGETS para componentes
+* Relacionado con DASHBOARD_PERMISSIONS para acceso granular
+�ndices Sugeridos:
+* idx_dashboard_org_category (organization_id, dashboard_category)
+* idx_dashboard_audience (target_audience)
+* idx_dashboard_active (is_active)
+
+TABLA 311: DASHBOARD_WIDGETS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. dashboard_definition_id (int, FK ? DASHBOARD_DEFINITIONS) - Dashboard padre
+3. widget_name (varchar(100)) - 'Monthly Revenue Chart', 'Top Projects Table'
+4. widget_type (varchar(30)) - 'CHART', 'TABLE', 'KPI_CARD', 'MAP', 'GAUGE'
+5. widget_config (json) - Chart type, colors, display options
+6. data_source_config (json) - SQL query, API endpoint, calculation logic
+7. position_x (int) - Grid position X coordinate
+8. position_y (int) - Grid position Y coordinate
+9. width (int) - Grid width spans
+10. height (int) - Grid height spans
+11. is_visible (boolean, DEFAULT TRUE) - Widget visible en dashboard
+12. refresh_interval_minutes (int, DEFAULT 15) - Auto-refresh frequency
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica (permite m�ltiples widgets por dashboard)
+Relaciones:
+* FK ? DASHBOARD_DEFINITIONS para asociaci�n con dashboard
+* Usado por sistema de rendering para mostrar widgets
+* Conecta con m�ltiples fuentes de datos del sistema
+�ndices Sugeridos:
+* idx_widget_dashboard (dashboard_definition_id)
+* idx_widget_type (widget_type)
+* idx_widget_position (position_x, position_y)
+
+TABLA 312: DASHBOARD_PERMISSIONS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. dashboard_definition_id (int, FK ? DASHBOARD_DEFINITIONS) - Dashboard objetivo
+3. contact_id (int, FK ? CONTACTS) - Usuario con permisos
+4. permission_level (varchar(20)) - 'VIEW', 'EDIT', 'ADMIN'
+5. can_edit (boolean, DEFAULT FALSE) - Puede editar dashboard
+6. can_share (boolean, DEFAULT FALSE) - Puede compartir dashboard
+7. granted_by_contact_id (int, FK ? CONTACTS) - Quien otorg� permisos
+8. granted_at (timestamp, DEFAULT NOW()) - Cu�ndo se otorgaron permisos
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica (permite m�ltiples niveles de permiso)
+Relaciones:
+* FK ? DASHBOARD_DEFINITIONS para control de acceso
+* FK ? CONTACTS para usuario objetivo y auditor�a
+* Usado por sistema de autorizaci�n para validar acceso
+�ndices Sugeridos:
+* idx_dashboard_permissions_contact (contact_id)
+* idx_dashboard_permissions_level (permission_level)
+* idx_dashboard_permissions_granted (granted_by_contact_id)
+
+TABLA 313: DASHBOARD_SNAPSHOTS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. dashboard_definition_id (int, FK ? DASHBOARD_DEFINITIONS) - Dashboard origen
+3. snapshot_name (varchar(100)) - 'Weekly Executive Report'
+4. snapshot_format (varchar(20)) - 'PDF', 'PNG', 'JSON'
+5. snapshot_data (json) - Data capturada del dashboard
+6. snapshot_url (varchar(255)) - AWS S3 URL del archivo generado
+7. generated_for_contact_id (int, FK ? CONTACTS) - Usuario destinatario
+8. schedule_id (int, FK ? DASHBOARD_SCHEDULES) - Si es snapshot programado
+9. generated_at (timestamp, DEFAULT NOW()) - Cu�ndo se gener�
+10. file_size_bytes (int) - Tama�o del archivo generado
+11. expires_at (timestamp) - Cu�ndo expira el snapshot
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? DASHBOARD_DEFINITIONS para origen de datos
+* FK ? CONTACTS para destinatario
+* Conecta con AWS S3 para almacenamiento de archivos
+* Integra con sistema de scheduling para automatizaci�n
+�ndices Sugeridos:
+* idx_snapshot_dashboard (dashboard_definition_id)
+* idx_snapshot_contact (generated_for_contact_id)
+* idx_snapshot_expires (expires_at)
+
+TABLA 314: REPORT_DEFINITIONS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - NULL para reports globales
+3. report_name (varchar(100)) - 'Monthly Financial Summary'
+4. report_category (varchar(50)) - 'FINANCIAL', 'OPERATIONAL', 'COMPLIANCE'
+5. report_type (varchar(30)) - 'TABULAR', 'CHART', 'MIXED', 'EXECUTIVE_SUMMARY'
+6. report_description (text) - Descripci�n detallada del reporte
+7. sql_query (text) - SQL query para generar el reporte
+8. parameters_schema (json) - Schema de par�metros configurables
+9. output_formats (json) - ['PDF', 'EXCEL', 'CSV'] formatos soportados
+10. template_config (json) - Configuraci�n de template y styling
+11. data_sources (json) - Tablas y views utilizadas
+12. estimated_execution_time (int) - Tiempo estimado en segundos
+13. cache_duration_minutes (int, DEFAULT 60) - Duraci�n del cache
+14. requires_approval (boolean, DEFAULT FALSE) - Requiere aprobaci�n para ejecutar
+15. is_public (boolean, DEFAULT FALSE) - Reporte p�blico
+16. created_by_contact_id (int, FK ? CONTACTS) - Creador del reporte
+17. is_active (boolean, DEFAULT TRUE) - Reporte activo
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, report_name) - Nombre �nico por organizaci�n
+Relaciones:
+* FK ? ORGANIZATIONS para multi-tenancy
+* FK ? CONTACTS para auditor�a y ownership
+* Relacionado con REPORT_EXECUTIONS para historial
+* Relacionado con REPORT_SCHEDULES para automatizaci�n
+�ndices Sugeridos:
+* idx_report_org_category (organization_id, report_category)
+* idx_report_active (is_active)
+* idx_report_execution_time (estimated_execution_time)
+
+TABLA 315: REPORT_SCHEDULES
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. report_definition_id (int, FK ? REPORT_DEFINITIONS) - Reporte a ejecutar
+3. schedule_name (varchar(100)) - 'Weekly Sales Report'
+4. cron_expression (varchar(50)) - '0 9 * * MON' (cada lunes 9am)
+5. timezone (varchar(50)) - 'America/New_York'
+6. recipient_emails (json) - Array de emails destinatarios
+7. delivery_format (varchar(20)) - 'PDF', 'EXCEL', 'CSV'
+8. parameters (json) - Par�metros fijos para la ejecuci�n
+9. is_active (boolean, DEFAULT TRUE) - Schedule activo
+10. next_execution_at (timestamp) - Pr�xima ejecuci�n programada
+11. last_execution_at (timestamp) - �ltima ejecuci�n
+12. total_scheduled_executions (int, DEFAULT 0) - Contador de ejecuciones
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? REPORT_DEFINITIONS para definici�n del reporte
+* Conecta con sistema de cron jobs para scheduling
+* Integra con sistema de emails para entrega
+�ndices Sugeridos:
+* idx_schedule_report (report_definition_id)
+* idx_schedule_next_execution (next_execution_at)
+* idx_schedule_active (is_active)
+
+TABLA 316: REPORT_EXECUTIONS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. report_definition_id (int, FK ? REPORT_DEFINITIONS) - Reporte ejecutado
+3. execution_type (varchar(20)) - 'MANUAL', 'SCHEDULED', 'API'
+4. parameters_used (json) - Par�metros utilizados en la ejecuci�n
+5. execution_status (varchar(20)) - 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'
+6. output_url (varchar(255)) - AWS S3 URL del reporte generado
+7. output_format (varchar(20)) - 'PDF', 'EXCEL', 'CSV' formato final
+8. total_records (int) - N�mero de registros en el reporte
+9. execution_time_seconds (decimal(8,2)) - Tiempo real de ejecuci�n
+10. error_message (text) - Mensaje de error si fall�
+11. executed_by_contact_id (int, FK ? CONTACTS) - Usuario que ejecut�
+12. started_at (timestamp) - Timestamp de inicio
+13. completed_at (timestamp) - Timestamp de finalizaci�n
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? REPORT_DEFINITIONS para rastrear ejecuciones
+* FK ? CONTACTS para auditor�a de usuario
+* Conecta con AWS S3 para almacenamiento de archivos
+* Usado para analytics de performance de reportes
+�ndices Sugeridos:
+* idx_execution_report (report_definition_id)
+* idx_execution_status (execution_status)
+* idx_execution_contact (executed_by_contact_id)
+* idx_execution_completed (completed_at)
+
+TABLA 317: REPORT_PERMISSIONS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. report_definition_id (int, FK ? REPORT_DEFINITIONS) - Reporte objetivo
+3. contact_id (int, FK ? CONTACTS) - Usuario con permisos
+4. permission_level (varchar(20)) - 'VIEW', 'EXECUTE', 'MODIFY'
+5. can_execute (boolean, DEFAULT FALSE) - Puede ejecutar reporte
+6. can_schedule (boolean, DEFAULT FALSE) - Puede programar ejecuciones
+7. can_modify_parameters (boolean, DEFAULT FALSE) - Puede modificar par�metros
+8. granted_by_contact_id (int, FK ? CONTACTS) - Quien otorg� permisos
+9. granted_at (timestamp, DEFAULT NOW()) - Cu�ndo se otorgaron permisos
+10. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? REPORT_DEFINITIONS para control de acceso
+* FK ? CONTACTS para usuario objetivo y auditor�a
+* Usado por sistema de autorizaci�n para validar acceso
+�ndices Sugeridos:
+* idx_report_permissions_contact (contact_id)
+* idx_report_permissions_level (permission_level)
+* idx_report_permissions_granted (granted_by_contact_id)
+
+TABLA 318: KPI_DEFINITIONS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - NULL para KPIs globales
+3. kpi_name (varchar(100)) - 'Monthly Recurring Revenue', 'Customer Acquisition Cost'
+4. kpi_category (varchar(50)) - 'FINANCIAL', 'OPERATIONAL', 'CUSTOMER', 'EMPLOYEE'
+5. kpi_type (varchar(30)) - 'METRIC', 'RATIO', 'PERCENTAGE', 'COUNT'
+6. calculation_formula (text) - Human-readable formula description
+7. data_sources (json) - Tablas y columnas utilizadas en c�lculo
+8. calculation_frequency (varchar(20)) - 'REAL_TIME', 'HOURLY', 'DAILY', 'WEEKLY'
+9. target_value (decimal(12,2)) - Valor objetivo del KPI
+10. warning_threshold (decimal(12,2)) - Umbral de alerta amarilla
+11. critical_threshold (decimal(12,2)) - Umbral de alerta roja
+12. trend_direction_preference (varchar(10)) - 'UP', 'DOWN', 'STABLE'
+13. benchmark_data (json) - Industry benchmarks para comparaci�n
+14. is_visible_dashboard (boolean, DEFAULT TRUE) - Visible en dashboards
+15. chart_type (varchar(20)) - 'LINE', 'GAUGE', 'NUMBER', 'TREND_ARROW'
+16. unit_of_measure (varchar(20)) - '$', '%', 'hours', 'count'
+17. created_by_contact_id (int, FK ? CONTACTS) - Creador del KPI
+18. is_active (boolean, DEFAULT TRUE) - KPI activo
+19. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+20. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, kpi_name) - Nombre �nico por organizaci�n
+Relaciones:
+* FK ? ORGANIZATIONS para multi-tenancy
+* FK ? CONTACTS para auditor�a y ownership
+* Relacionado con KPI_VALUES para valores calculados
+* Relacionado con KPI_ALERTS para notificaciones
+�ndices Sugeridos:
+* idx_kpi_org_category (organization_id, kpi_category)
+* idx_kpi_frequency (calculation_frequency)
+* idx_kpi_active (is_active)
+
+TABLA 319: KPI_VALUES
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. kpi_definition_id (int, FK ? KPI_DEFINITIONS) - KPI asociado
+3. calculation_date (date) - Fecha del c�lculo
+4. calculation_time (time) - Hora del c�lculo
+5. calculated_value (decimal(12,2)) - Valor calculado del KPI
+6. target_value (decimal(12,2)) - May vary from KPI definition
+7. variance_amount (decimal(12,2)) - Diferencia vs target
+8. variance_percentage (decimal(5,2)) - Porcentaje de variaci�n
+9. performance_status (varchar(20)) - 'EXCELLENT', 'GOOD', 'WARNING', 'CRITICAL'
+10. trend_direction (varchar(10)) - 'UP', 'DOWN', 'STABLE'
+11. contributing_factors (json) - What influenced this KPI value
+12. drill_down_data (json) - Detailed breakdown para analysis
+13. confidence_score (decimal(5,2)) - AI confidence in calculation
+14. benchmark_comparison (json) - Comparison vs industry benchmarks
+15. calculated_at (timestamp, DEFAULT NOW()) - Timestamp del c�lculo
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica (permite m�ltiples valores por fecha)
+Relaciones:
+* FK ? KPI_DEFINITIONS para asociaci�n con definici�n
+* Usado por dashboards para mostrar tendencias
+* Integra con sistema de alertas para notificaciones
+�ndices Sugeridos:
+* idx_kpi_value_definition_date (kpi_definition_id, calculation_date)
+* idx_kpi_value_status (performance_status)
+* idx_kpi_value_calculated (calculated_at)
+
+TABLA 320: KPI_ALERTS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. kpi_definition_id (int, FK ? KPI_DEFINITIONS) - KPI que dispar� alerta
+3. kpi_value_id (int, FK ? KPI_VALUES) - Valor espec�fico que caus� alerta
+4. alert_type (varchar(20)) - 'WARNING', 'CRITICAL', 'BACK_TO_NORMAL'
+5. alert_message (text) - Mensaje descriptivo de la alerta
+6. threshold_breached (decimal(12,2)) - Umbral que se cruz�
+7. actual_value (decimal(12,2)) - Valor real que caus� la alerta
+8. severity_level (int) - 1-5 nivel de severidad
+9. notification_sent (boolean, DEFAULT FALSE) - Si se envi� notificaci�n
+10. acknowledged_by_contact_id (int, FK ? CONTACTS) - Usuario que reconoci�
+11. acknowledged_at (timestamp) - Cu�ndo se reconoci�
+12. resolution_notes (text) - Notas de resoluci�n
+13. auto_resolved (boolean, DEFAULT FALSE) - Si se resolvi� autom�ticamente
+14. resolved_at (timestamp) - Cu�ndo se resolvi�
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? KPI_DEFINITIONS para origen de la alerta
+* FK ? KPI_VALUES para valor espec�fico
+* FK ? CONTACTS para acknowledgment
+* Integra con sistema de notificaciones
+�ndices Sugeridos:
+* idx_alert_kpi_definition (kpi_definition_id)
+* idx_alert_type_severity (alert_type, severity_level)
+* idx_alert_acknowledged (acknowledged_by_contact_id)
+
+
+TABLA 321: KPI_BENCHMARKS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. kpi_definition_id (int, FK ? KPI_DEFINITIONS) - KPI asociado
+3. benchmark_name (varchar(100)) - 'Industry Average', 'Top Quartile'
+4. benchmark_source (varchar(100)) - 'Construction Industry Report 2024'
+5. industry_type (varchar(50)) - 'ROOFING', 'RESTORATION', 'GENERAL'
+6. company_size_category (varchar(30)) - 'SMALL', 'MEDIUM', 'LARGE'
+7. benchmark_value (decimal(12,2)) - Valor de referencia de la industria
+8. percentile_rank (decimal(5,2)) - Percentil que representa (0-100)
+9. data_collection_period (varchar(50)) - 'Q1 2024', 'Annual 2023'
+10. sample_size (int) - N�mero de companies en el benchmark
+11. geographic_scope (varchar(50)) - 'US', 'Northeast', 'Global'
+12. methodology_notes (text) - C�mo se calcul� el benchmark
+13. last_updated (date) - �ltima actualizaci�n del benchmark
+14. is_active (boolean, DEFAULT TRUE) - Benchmark activo
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica (permite m�ltiples benchmarks por KPI)
+Relaciones:
+* FK ? KPI_DEFINITIONS para asociaci�n con KPI
+* Usado para comparaciones en dashboards
+* Integra con sistemas externos de industry data
+�ndices Sugeridos:
+* idx_benchmark_kpi_definition (kpi_definition_id)
+* idx_benchmark_industry_size (industry_type, company_size_category)
+* idx_benchmark_active (is_active)
+
+TABLA 322: DATA_SOURCES
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - NULL para fuentes globales
+3. source_name (varchar(100)) - 'Production Database', 'External API'
+4. source_type (varchar(30)) - 'DATABASE', 'API', 'FILE', 'WAREHOUSE'
+5. connection_string (varchar(255)) - Encrypted connection details
+6. authentication_config (json) - Encrypted auth credentials
+7. schema_mapping (json) - Table/column mappings
+8. refresh_frequency (varchar(20)) - 'REAL_TIME', 'HOURLY', 'DAILY'
+9. data_retention_days (int) - Cu�ntos d�as retener data
+10. is_primary_source (boolean, DEFAULT FALSE) - Source principal
+11. health_status (varchar(20)) - 'HEALTHY', 'WARNING', 'ERROR'
+12. last_sync_at (timestamp) - �ltima sincronizaci�n
+13. sync_error_count (int, DEFAULT 0) - Contador de errores
+14. data_quality_score (decimal(5,2)) - Score de calidad 0-100
+15. created_by_contact_id (int, FK ? CONTACTS) - Creador de la fuente
+16. is_active (boolean, DEFAULT TRUE) - Fuente activa
+17. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? ORGANIZATIONS para multi-tenancy
+* FK ? CONTACTS para auditor�a
+* Relacionado con ETL_JOBS para sincronizaci�n
+* Usado por reportes y dashboards para obtener data
+�ndices Sugeridos:
+* idx_data_source_org_type (organization_id, source_type)
+* idx_data_source_health (health_status)
+* idx_data_source_sync (last_sync_at)
+
+TABLA 323: ETL_JOBS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. data_source_id (int, FK ? DATA_SOURCES) - Fuente de datos origen
+3. job_name (varchar(100)) - 'Daily Financial Sync', 'Hourly KPI Update'
+4. job_type (varchar(30)) - 'EXTRACT', 'TRANSFORM', 'LOAD', 'FULL_ETL'
+5. schedule_expression (varchar(50)) - Cron expression para scheduling
+6. extraction_config (json) - Configuration para extraction
+7. transformation_rules (json) - Business rules para transformation
+8. destination_config (json) - Where to load the data
+9. job_status (varchar(20)) - 'RUNNING', 'COMPLETED', 'FAILED', 'SCHEDULED'
+10. last_execution_start (timestamp) - �ltima ejecuci�n inicio
+11. last_execution_end (timestamp) - �ltima ejecuci�n fin
+12. last_execution_status (varchar(20)) - Status de �ltima ejecuci�n
+13. records_processed (int) - Registros procesados en �ltima ejecuci�n
+14. execution_time_seconds (decimal(8,2)) - Tiempo de ejecuci�n
+15. error_message (text) - Mensaje de error si fall�
+16. retry_count (int, DEFAULT 0) - N�mero de reintentos
+17. max_retries (int, DEFAULT 3) - M�ximo n�mero de reintentos
+18. next_scheduled_run (timestamp) - Pr�xima ejecuci�n programada
+19. created_by_contact_id (int, FK ? CONTACTS) - Creador del job
+20. is_active (boolean, DEFAULT TRUE) - Job activo
+21. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+22. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? DATA_SOURCES para origen de datos
+* FK ? CONTACTS para auditor�a
+* Relacionado con DATA_LINEAGE para tracking
+* Integra con sistema de scheduling
+�ndices Sugeridos:
+* idx_etl_job_source (data_source_id)
+* idx_etl_job_status (job_status)
+* idx_etl_job_next_run (next_scheduled_run)
+
+TABLA 324: DATA_LINEAGE
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. etl_job_id (int, FK ? ETL_JOBS) - Job que proces� la data
+3. source_table (varchar(100)) - Tabla origen
+4. source_column (varchar(100)) - Columna origen
+5. destination_table (varchar(100)) - Tabla destino
+6. destination_column (varchar(100)) - Columna destino
+7. transformation_applied (text) - Transformaci�n aplicada
+8. transformation_type (varchar(30)) - 'AGGREGATION', 'CALCULATION', 'MAPPING'
+9. processing_timestamp (timestamp) - Cu�ndo se proces�
+10. record_count_source (int) - Registros en origen
+11. record_count_destination (int) - Registros en destino
+12. data_quality_checks (json) - Checks de calidad aplicados
+13. quality_score (decimal(5,2)) - Score de calidad 0-100
+14. validation_errors (json) - Errores de validaci�n encontrados
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? ETL_JOBS para rastrear procesamiento
+* Usado para auditor�a de data flow
+* Integra con DATA_QUALITY_METRICS
+�ndices Sugeridos:
+* idx_lineage_etl_job (etl_job_id)
+* idx_lineage_source_table (source_table)
+* idx_lineage_destination_table (destination_table)
+
+TABLA 325: DATA_QUALITY_METRICS
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. data_source_id (int, FK ? DATA_SOURCES) - Fuente de datos evaluada
+3. table_name (varchar(100)) - Tabla evaluada
+4. column_name (varchar(100)) - Columna evaluada (NULL para tabla completa)
+5. metric_type (varchar(30)) - 'COMPLETENESS', 'ACCURACY', 'CONSISTENCY', 'TIMELINESS'
+6. metric_value (decimal(8,4)) - Valor del metric (0-1 o porcentaje)
+7. threshold_passed (boolean) - Si pas� el umbral m�nimo
+8. threshold_value (decimal(8,4)) - Umbral configurado
+9. record_count_total (int) - Total de registros evaluados
+10. record_count_valid (int) - Registros que pasaron validaci�n
+11. validation_rules_applied (json) - Rules aplicadas para esta m�trica
+12. issues_detected (json) - Issues espec�ficos encontrados
+13. suggested_fixes (json) - AI-generated suggestions para fixes
+14. impact_assessment (varchar(20)) - 'LOW', 'MEDIUM', 'HIGH'
+15. measured_at (timestamp, DEFAULT NOW()) - Cu�ndo se midi�
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? DATA_SOURCES para origen de evaluaci�n
+* Relacionado con DATA_LINEAGE para tracking
+* Usado por dashboards para mostrar calidad de data
+�ndices Sugeridos:
+* idx_quality_source_table (data_source_id, table_name)
+* idx_quality_metric_type (metric_type)
+* idx_quality_measured (measured_at)
+
+TABLA 326: ANALYTICAL_QUERIES
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - NULL para queries globales
+3. query_name (varchar(100)) - 'Top Performing Projects', 'Customer Retention Rate'
+4. query_category (varchar(50)) - 'FINANCIAL', 'OPERATIONAL', 'CUSTOM'
+5. sql_query (text) - SQL query optimizada para analytics
+6. parameters_schema (json) - Schema de par�metros aceptados
+7. expected_execution_time (int) - Tiempo esperado en segundos
+8. cache_duration_minutes (int, DEFAULT 30) - Duraci�n del cache
+9. result_schema (json) - Schema esperado del resultado
+10. optimization_notes (text) - Notas sobre optimizaci�n applied
+11. business_context (text) - Context business para la query
+12. created_by_contact_id (int, FK ? CONTACTS) - Creador de la query
+13. usage_count (int, DEFAULT 0) - Veces que se ha ejecutado
+14. average_execution_time (decimal(8,2)) - Tiempo promedio real
+15. performance_rating (decimal(3,2)) - Rating 1-5 de performance
+16. is_public (boolean, DEFAULT FALSE) - Query p�blicamente disponible
+17. is_active (boolean, DEFAULT TRUE) - Query activa
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? ORGANIZATIONS para multi-tenancy
+* FK ? CONTACTS para auditor�a
+* Relacionado con QUERY_PERFORMANCE para metrics
+* Usado por reportes y dashboards
+�ndices Sugeridos:
+* idx_analytical_org_category (organization_id, query_category)
+* idx_analytical_performance (performance_rating)
+* idx_analytical_usage (usage_count)
+
+TABLA 327: QUERY_PERFORMANCE
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. analytical_query_id (int, FK ? ANALYTICAL_QUERIES) - Query ejecutada
+3. execution_timestamp (timestamp, DEFAULT NOW()) - Cu�ndo se ejecut�
+4. parameters_used (json) - Par�metros utilizados en ejecuci�n
+5. execution_time_ms (int) - Tiempo real en milliseconds
+6. rows_returned (int) - N�mero de filas retornadas
+7. cpu_usage_percent (decimal(5,2)) - CPU utilizado durante ejecuci�n
+8. memory_usage_mb (decimal(8,2)) - Memoria utilizada en MB
+9. cache_hit (boolean, DEFAULT FALSE) - Si utiliz� cache
+10. query_plan (json) - Execution plan de la database
+11. bottleneck_identified (varchar(100)) - Principal bottleneck identificado
+12. optimization_suggestions (json) - AI-generated optimization suggestions
+13. executed_by_contact_id (int, FK ? CONTACTS) - Usuario que ejecut�
+14. client_ip (varchar(45)) - IP desde donde se ejecut�
+15. user_agent (varchar(255)) - Browser/client info
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? ANALYTICAL_QUERIES para rastrear performance
+* FK ? CONTACTS para auditor�a de usuario
+* Usado para optimization analytics
+* Integra con AI para suggestions
+�ndices Sugeridos:
+* idx_performance_query (analytical_query_id)
+* idx_performance_execution_time (execution_time_ms)
+* idx_performance_contact (executed_by_contact_id)
+
+TABLA 328: USER_ANALYTICS_PREFERENCES
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Usuario configurando preferencias
+3. preferred_dashboard_id (int, FK ? DASHBOARD_DEFINITIONS) - Dashboard por defecto
+4. default_date_range (varchar(20)) - 'LAST_7_DAYS', 'LAST_30_DAYS', 'CURRENT_MONTH'
+5. preferred_timezone (varchar(50)) - 'America/New_York'
+6. refresh_frequency (varchar(20)) - 'REAL_TIME', 'EVERY_5_MIN', 'EVERY_15_MIN'
+7. notification_preferences (json) - Configuraci�n de alertas y notificaciones
+8. chart_preferences (json) - Tipos de chart preferidos, colores
+9. export_format_preference (varchar(20)) - 'PDF', 'EXCEL', 'CSV'
+10. email_reports_enabled (boolean, DEFAULT TRUE) - Recibir reportes por email
+11. mobile_notifications_enabled (boolean, DEFAULT TRUE) - Notificaciones m�viles
+12. data_drill_down_level (varchar(20)) - 'SUMMARY', 'DETAILED', 'GRANULAR'
+13. auto_save_filters (boolean, DEFAULT TRUE) - Guardar filtros autom�ticamente
+14. personalized_recommendations (boolean, DEFAULT TRUE) - AI recommendations
+15. analytics_skill_level (varchar(20)) - 'BEGINNER', 'INTERMEDIATE', 'ADVANCED'
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de actualizaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica (un usuario puede tener m�ltiples preferencias)
+Relaciones:
+* FK ? CONTACTS para usuario target
+* FK ? DASHBOARD_DEFINITIONS para dashboard preferido
+* Usado por UI para personalizaci�n
+* Integra con sistema de notificaciones
+�ndices Sugeridos:
+* idx_preferences_contact (contact_id)
+* idx_preferences_dashboard (preferred_dashboard_id)
+* idx_preferences_skill_level (analytics_skill_level)
+
+TABLA 329: REPORT_CACHE
+M�dulo: REPORTES Y BUSINESS INTELLIGENCE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. report_definition_id (int, FK ? REPORT_DEFINITIONS) - Reporte cacheado
+3. cache_key (varchar(255)) - MD5 hash de query + parameters
+4. cached_data (json) - Data del reporte cacheada
+5. parameter_hash (varchar(255)) - Hash of parameters para cache invalidation
+6. cached_at (timestamp, DEFAULT NOW()) - Cu�ndo se cache�
+7. expires_at (timestamp) - Cu�ndo expira el cache
+8. cache_size_bytes (int) - Tama�o del cache en bytes
+9. access_count (int, DEFAULT 0) - Veces que se accedi� al cache
+10. last_accessed (timestamp) - �ltimo acceso al cache
+11. hit_rate_percentage (decimal(5,2)) - Porcentaje de hits vs misses
+12. generation_time_ms (int) - Tiempo que tom� generar el cache
+13. compression_applied (boolean, DEFAULT FALSE) - Si se aplic� compresi�n
+14. cache_effectiveness_score (decimal(5,2)) - Score 1-10 de efectividad
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+Restricciones �nicas:
+* Ninguna restricci�n UNIQUE espec�fica
+Relaciones:
+* FK ? REPORT_DEFINITIONS para asociaci�n con reporte
+* Usado por sistema de cache para optimizaci�n
+* Integra con performance monitoring
+�ndices Sugeridos:
+* idx_cache_report_key (report_definition_id, cache_key)
+* idx_cache_expires (expires_at)
+* idx_cache_access_count (access_count)
+
+RESUMEN DEL M�DULO
+REPORTES Y BUSINESS INTELLIGENCE completado con 20 tablas que proporcionan:
+Capacidades Enterprise:
+1. Dashboard Engine - Dashboards personalizables con widgets din�micos
+2. Reporting Engine - Reportes programados con m�ltiples formatos
+3. KPI System - M�tricas en tiempo real con alertas inteligentes
+4. Data Warehouse - ETL jobs y gesti�n de calidad de datos
+5. Analytics Avanzado - Query optimization y cache inteligente
+Valor Business para Construction:
+* Executive Dashboards: C-Level visibility de performance financial y operational
+* Project ROI Analytics: Profitability tracking por proyecto, cliente, tipo de trabajo
+* Cash Flow Intelligence: Predictive analytics para cash flow management
+* Performance Benchmarking: Comparison vs industry standards
+* AI-Powered Insights: Recommendations autom�ticas para optimization
+Integraci�n con M�dulos Existentes:
+* Finanzas: KPIs autom�ticos de P&L, cash flow, collections effectiveness
+* Workflows: Performance analytics de automation success rates
+* Projects: Project profitability, timeline performance, resource utilization
+* HR: Employee productivity, training effectiveness, safety metrics
+* Sales: Pipeline analytics, conversion rates, customer lifetime value

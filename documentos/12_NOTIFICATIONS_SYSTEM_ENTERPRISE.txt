@@ -1,0 +1,617 @@
+INVENTARIO COMPLETO: M�DULO NOTIFICATIONS SYSTEM ENTERPRISE
+Sistema de notificaciones multi-canal enterprise-grade con IA para construcci�n
+
+TABLA 330: NOTIFICATION_TYPES
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. type_name (varchar(50), UNIQUE) - Nombre �nico del tipo 'PAYMENT_REMINDER', 'WEATHER_ALERT'
+3. type_category (varchar(30)) - Categor�a 'BUSINESS', 'EMERGENCY', 'SYSTEM', 'MARKETING'
+4. display_name (varchar(100)) - Nombre display para UI
+5. description (text) - Descripci�n detallada del tipo de notificaci�n
+6. default_channels (json) - Canales por defecto ['SMS', 'EMAIL', 'PUSH']
+7. requires_acknowledgment (boolean, DEFAULT FALSE) - Si requiere confirmaci�n de recepci�n
+8. max_retry_attempts (int, DEFAULT 3) - M�ximo n�mero de reintentos
+9. escalation_enabled (boolean, DEFAULT FALSE) - Si permite escalaci�n autom�tica
+10. compliance_required (boolean, DEFAULT FALSE) - Si requiere cumplimiento legal
+11. icon_name (varchar(50)) - Nombre del �cono para UI
+12. default_priority (varchar(20), DEFAULT 'MEDIUM') - Prioridad por defecto
+13. is_user_configurable (boolean, DEFAULT TRUE) - Si usuario puede configurar
+14. weather_dependent (boolean, DEFAULT FALSE) - Si depende de condiciones clim�ticas
+15. business_hours_only (boolean, DEFAULT FALSE) - Solo horario laboral
+16. requires_site_supervisor (boolean, DEFAULT FALSE) - Requiere supervisor en sitio
+17. insurance_reportable (boolean, DEFAULT FALSE) - Reportable a seguros
+18. emergency_override_quiet_hours (boolean, DEFAULT FALSE) - Override horarios silenciosos
+19. is_active (boolean, DEFAULT TRUE) - Estado activo del tipo
+20. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+21. updated_at (timestamp, DEFAULT NOW()) - Fecha de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(type_name)
+Relaciones:
+* Uno a muchos con NOTIFICATION_TEMPLATES
+* Uno a muchos con NOTIFICATION_TRIGGERS
+* Uno a muchos con NOTIFICATION_RULES
+* Uno a muchos con NOTIFICATION_ANALYTICS
+�ndices Sugeridos:
+* INDEX(type_category, is_active)
+* INDEX(requires_acknowledgment)
+
+TABLA 331: NOTIFICATION_TEMPLATES
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. notification_type_id (int, FK ? NOTIFICATION_TYPES) - Tipo de notificaci�n
+3. template_name (varchar(100)) - Nombre del template
+4. channel_type (varchar(20)) - Canal 'SMS', 'EMAIL', 'PUSH', 'VOICE'
+5. subject_template (varchar(200)) - Template del subject/t�tulo
+6. content_template (text) - Template del contenido principal
+7. variables_schema (json) - Esquema de variables disponibles
+8. language_code (varchar(5), DEFAULT 'en') - C�digo de idioma
+9. is_html (boolean, DEFAULT FALSE) - Si el contenido es HTML
+10. personalization_level (varchar(20), DEFAULT 'BASIC') - Nivel de personalizaci�n
+11. a_b_test_group (varchar(10)) - Grupo de prueba A/B
+12. rich_content (json) - Contenido rico (im�genes, botones)
+13. action_buttons (json) - Botones de acci�n ['APPROVE', 'RESCHEDULE', 'CALL']
+14. deep_link_url (varchar(500)) - URL de deep link
+15. ai_optimization_enabled (boolean, DEFAULT FALSE) - Optimizaci�n por IA habilitada
+16. ai_subject_variants (json) - Variantes generadas por IA
+17. ai_content_variants (json) - Contenido alternativo por IA
+18. performance_score (decimal(3,2)) - Score de performance del template
+19. usage_count (int, DEFAULT 0) - Contador de uso
+20. last_used_at (timestamp) - �ltima vez usado
+21. created_by_contact_id (int, FK ? CONTACTS) - Creado por contacto
+22. is_active (boolean, DEFAULT TRUE) - Estado activo
+23. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+24. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(notification_type_id, template_name, channel_type)
+Relaciones:
+* Muchos a uno con NOTIFICATION_TYPES
+* Uno a muchos con NOTIFICATION_QUEUE
+* Muchos a uno con CONTACTS (created_by)
+�ndices Sugeridos:
+* INDEX(notification_type_id, channel_type)
+* INDEX(performance_score DESC)
+* INDEX(language_code)
+
+TABLA 332: NOTIFICATION_QUEUE
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. notification_type_id (int, FK ? NOTIFICATION_TYPES) - Tipo de notificaci�n
+4. template_id (int, FK ? NOTIFICATION_TEMPLATES) - Template usado
+5. trigger_id (int, FK ? NOTIFICATION_TRIGGERS) - Trigger que gener�
+6. priority (varchar(20), DEFAULT 'MEDIUM') - Prioridad 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+7. scheduled_for (timestamp) - Programado para env�o
+8. channels (json) - Canales de env�o ['SMS', 'EMAIL']
+9. content_variables (json) - Variables para personalizaci�n
+10. recipient_count (int, DEFAULT 1) - N�mero de destinatarios
+11. context_type (varchar(30)) - Contexto 'PROJECT', 'INVOICE', 'EMERGENCY'
+12. context_id (int) - ID del contexto (project_id, invoice_id)
+13. status (varchar(20), DEFAULT 'PENDING') - Estado actual
+14. sent_at (timestamp) - Fecha de env�o
+15. delivery_confirmation_required (boolean, DEFAULT FALSE) - Requiere confirmaci�n
+16. total_cost (decimal(6,2)) - Costo total del env�o
+17. success_rate (decimal(5,2)) - Tasa de �xito
+18. failure_reason (varchar(100)) - Raz�n de falla
+19. retry_count (int, DEFAULT 0) - Contador de reintentos
+20. max_retries (int, DEFAULT 3) - M�ximo de reintentos
+21. next_retry_at (timestamp) - Pr�ximo reintento
+22. escalated_at (timestamp) - Fecha de escalaci�n
+23. expires_at (timestamp) - Fecha de expiraci�n
+24. business_impact_score (decimal(5,2)) - Score de impacto empresarial
+25. signalr_group_id (varchar(100)) - ID para SignalR targeting
+26. created_by_contact_id (int, FK ? CONTACTS) - Creado por
+27. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+28. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con NOTIFICATION_TYPES
+* Muchos a uno con NOTIFICATION_TEMPLATES
+* Muchos a uno con NOTIFICATION_TRIGGERS
+* Uno a muchos con NOTIFICATION_RECIPIENTS
+* Uno a muchos con NOTIFICATION_DELIVERY_LOG
+* Uno a muchos con NOTIFICATION_FAILURES
+�ndices Sugeridos:
+* INDEX(organization_id, status, priority)
+* INDEX(scheduled_for, status)
+* INDEX(context_type, context_id)
+* INDEX(expires_at)
+
+TABLA 333: NOTIFICATION_DELIVERY_LOG
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. notification_queue_id (int, FK ? NOTIFICATION_QUEUE) - Notificaci�n padre
+3. recipient_contact_id (int, FK ? CONTACTS) - Destinatario
+4. channel_type (varchar(20)) - Canal usado 'SMS', 'EMAIL', 'PUSH'
+5. delivery_status (varchar(20)) - Estado 'PENDING', 'SENT', 'DELIVERED', 'FAILED'
+6. provider_name (varchar(30)) - Proveedor 'TWILIO', 'SENDGRID'
+7. provider_message_id (varchar(100)) - ID del proveedor
+8. delivery_attempt (int, DEFAULT 1) - Intento de entrega n�mero
+9. sent_at (timestamp) - Fecha de env�o
+10. delivered_at (timestamp) - Fecha de entrega confirmada
+11. opened_at (timestamp) - Fecha de apertura (email/push)
+12. clicked_at (timestamp) - Fecha de click
+13. replied_at (timestamp) - Fecha de respuesta
+14. acknowledged_at (timestamp) - Fecha de confirmaci�n
+15. cost (decimal(6,4)) - Costo individual
+16. processing_time_ms (int) - Tiempo de procesamiento en ms
+17. delivery_time_minutes (decimal(8,2)) - Tiempo hasta entrega
+18. response_time_minutes (decimal(8,2)) - Tiempo de respuesta del usuario
+19. personalized_content (text) - Contenido personalizado enviado
+20. device_info (json) - Info del dispositivo (push notifications)
+21. location_data (json) - Datos de ubicaci�n si disponible
+22. user_agent (varchar(255)) - User agent del dispositivo
+23. ip_address (varchar(45)) - IP address del destinatario
+24. engagement_score (decimal(3,2)) - Score de engagement
+25. retention_days (int, DEFAULT 2555) - D�as de retenci�n de datos
+26. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+27. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(notification_queue_id, recipient_contact_id, channel_type)
+Relaciones:
+* Muchos a uno con NOTIFICATION_QUEUE
+* Muchos a uno con CONTACTS
+�ndices Sugeridos:
+* INDEX(notification_queue_id, delivery_status)
+* INDEX(recipient_contact_id, sent_at)
+* INDEX(channel_type, delivery_status)
+* INDEX(delivered_at, opened_at)
+
+TABLA 334: NOTIFICATION_FAILURES
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. notification_queue_id (int, FK ? NOTIFICATION_QUEUE) - Notificaci�n que fall�
+3. channel_type (varchar(20)) - Canal que fall�
+4. failure_type (varchar(30)) - Tipo de falla 'PROVIDER_ERROR', 'INVALID_RECIPIENT'
+5. error_code (varchar(50)) - C�digo de error del proveedor
+6. error_message (text) - Mensaje de error detallado
+7. failure_timestamp (timestamp) - Fecha y hora de la falla
+8. is_permanent (boolean, DEFAULT FALSE) - Si es falla permanente
+9. retry_count (int, DEFAULT 0) - N�mero de reintentos
+10. next_retry_at (timestamp) - Pr�ximo intento programado
+11. auto_escalated (boolean, DEFAULT FALSE) - Si se escal� autom�ticamente
+12. resolution_action (varchar(50)) - Acci�n de resoluci�n tomada
+13. resolved_at (timestamp) - Fecha de resoluci�n
+14. resolved_by_contact_id (int, FK ? CONTACTS) - Resuelto por
+15. notes (text) - Notas adicionales sobre la falla
+16. retention_days (int, DEFAULT 2555) - D�as de retenci�n
+17. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+18. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica
+Relaciones:
+* Muchos a uno con NOTIFICATION_QUEUE
+* Muchos a uno con CONTACTS (resolved_by)
+�ndices Sugeridos:
+* INDEX(notification_queue_id, failure_type)
+* INDEX(failure_timestamp, is_permanent)
+* INDEX(next_retry_at, auto_escalated)
+
+TABLA 335: NOTIFICATION_TRIGGERS
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. trigger_name (varchar(100)) - Nombre del trigger
+4. trigger_type (varchar(30)) - Tipo 'EVENT', 'SCHEDULE', 'CONDITION'
+5. event_source (varchar(50)) - Fuente 'INVOICES', 'WEATHER_API', 'WORKFLOWS'
+6. event_conditions (json) - Condiciones del evento
+7. notification_type_id (int, FK ? NOTIFICATION_TYPES) - Tipo de notificaci�n
+8. target_audience (varchar(30)) - Audiencia objetivo
+9. recipient_query (text) - Query para seleccionar destinatarios
+10. template_variables (json) - Variables para el template
+11. delay_minutes (int, DEFAULT 0) - Retraso antes de env�o
+12. is_repeatable (boolean, DEFAULT FALSE) - Si puede repetirse
+13. repeat_interval_hours (int) - Intervalo de repetici�n
+14. max_occurrences (int) - M�ximo n�mero de ocurrencias
+15. priority_override (varchar(20)) - Override de prioridad
+16. channels_override (json) - Override de canales
+17. active_hours_start (time) - Hora inicio actividad
+18. active_hours_end (time) - Hora fin actividad
+19. timezone (varchar(50)) - Zona horaria
+20. workflow_definition_id (int, FK ? WORKFLOW_DEFINITIONS) - Workflow relacionado
+21. workflow_step_id (int, FK ? WORKFLOW_STEPS) - Paso del workflow
+22. auto_acknowledge_on_workflow_complete (boolean, DEFAULT FALSE) - Auto acknowledgment
+23. is_active (boolean, DEFAULT TRUE) - Estado activo
+24. created_by_contact_id (int, FK ? CONTACTS) - Creado por
+25. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+26. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con NOTIFICATION_TYPES
+* Muchos a uno con WORKFLOW_DEFINITIONS
+* Muchos a uno con WORKFLOW_STEPS
+* Muchos a uno con CONTACTS (created_by)
+* Uno a muchos con NOTIFICATION_QUEUE
+�ndices Sugeridos:
+* INDEX(organization_id, trigger_type, is_active)
+* INDEX(event_source, is_active)
+* INDEX(workflow_definition_id)
+
+TABLA 336: NOTIFICATION_RULES
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. rule_name (varchar(100)) - Nombre de la regla
+4. rule_category (varchar(30)) - Categor�a 'PRIORITIZATION', 'ROUTING', 'SUPPRESSION'
+5. rule_type (varchar(20)) - Tipo 'IF_THEN', 'SCORING', 'FILTER'
+6. conditions (json) - Condiciones de la regla
+7. actions (json) - Acciones a ejecutar
+8. priority_adjustment (int, DEFAULT 0) - Ajuste de prioridad
+9. channel_modifications (json) - Modificaciones de canal
+10. template_overrides (json) - Overrides de template
+11. suppression_rules (json) - Reglas de supresi�n
+12. ai_enhanced (boolean, DEFAULT FALSE) - Mejorado por IA
+13. success_metrics (json) - M�tricas de �xito
+14. a_b_test_enabled (boolean, DEFAULT FALSE) - Pruebas A/B habilitadas
+15. execution_order (int, DEFAULT 100) - Orden de ejecuci�n
+16. is_global (boolean, DEFAULT FALSE) - Si es regla global
+17. created_by_contact_id (int, FK ? CONTACTS) - Creado por
+18. is_active (boolean, DEFAULT TRUE) - Estado activo
+19. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+20. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con CONTACTS (created_by)
+�ndices Sugeridos:
+* INDEX(organization_id, rule_category, is_active)
+* INDEX(execution_order, is_active)
+* INDEX(is_global, is_active)
+
+TABLA 337: ESCALATION_RULES
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. escalation_name (varchar(100)) - Nombre de la escalaci�n
+4. trigger_conditions (json) - Condiciones que activan escalaci�n
+5. escalation_steps (json) - Pasos de escalaci�n
+6. max_escalation_level (int, DEFAULT 3) - M�ximo nivel de escalaci�n
+7. total_escalation_time_minutes (int) - Tiempo total de escalaci�n
+8. business_hours_only (boolean, DEFAULT TRUE) - Solo horario laboral
+9. bypass_conditions (json) - Condiciones para bypass
+10. auto_resolve_conditions (json) - Condiciones para auto-resoluci�n
+11. notification_type_id (int, FK ? NOTIFICATION_TYPES) - Tipo de notificaci�n
+12. success_criteria (varchar(100)) - Criterios de �xito
+13. fallback_contact_id (int, FK ? CONTACTS) - Contacto de respaldo
+14. cost_threshold (decimal(10,2)) - Umbral de costo
+15. requires_manual_approval (boolean, DEFAULT FALSE) - Requiere aprobaci�n manual
+16. created_by_contact_id (int, FK ? CONTACTS) - Creado por
+17. is_active (boolean, DEFAULT TRUE) - Estado activo
+18. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con NOTIFICATION_TYPES
+* Muchos a uno con CONTACTS (fallback_contact)
+* Muchos a uno con CONTACTS (created_by)
+�ndices Sugeridos:
+* INDEX(organization_id, is_active)
+* INDEX(notification_type_id)
+* INDEX(business_hours_only)
+
+TABLA 338: NOTIFICATION_RECIPIENTS
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. notification_queue_id (int, FK ? NOTIFICATION_QUEUE) - Notificaci�n padre
+3. recipient_contact_id (int, FK ? CONTACTS) - Destinatario
+4. recipient_role (varchar(50)) - Rol 'PRIMARY', 'CC', 'BCC', 'ESCALATION'
+5. selection_criteria (json) - Criterios de selecci�n
+6. personalization_data (json) - Datos de personalizaci�n
+7. send_priority (int, DEFAULT 1) - Prioridad de env�o
+8. channel_preferences (json) - Preferencias de canal
+9. delivery_status (varchar(20), DEFAULT 'PENDING') - Estado de entrega
+10. customer_journey_stage (varchar(30)) - Etapa 'LEAD', 'CONTRACT', 'COMPLETION'
+11. project_phase (varchar(30)) - Fase 'INSPECTION', 'WORK', 'FOLLOWUP'
+12. relationship_score (decimal(3,2)) - Score de relaci�n calculado por IA
+13. delivered_at (timestamp) - Fecha de entrega
+14. acknowledged_at (timestamp) - Fecha de confirmaci�n
+15. acknowledgment_method (varchar(20)) - M�todo de confirmaci�n
+16. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(notification_queue_id, recipient_contact_id, recipient_role)
+Relaciones:
+* Muchos a uno con NOTIFICATION_QUEUE
+* Muchos a uno con CONTACTS
+�ndices Sugeridos:
+* INDEX(notification_queue_id, delivery_status)
+* INDEX(recipient_contact_id, customer_journey_stage)
+* INDEX(relationship_score DESC)
+
+TABLA 339: NOTIFICATION_GROUPS
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. group_name (varchar(100)) - Nombre del grupo 'All Managers', 'Emergency Contacts'
+4. group_type (varchar(30)) - Tipo 'STATIC', 'DYNAMIC', 'ROLE_BASED'
+5. group_description (text) - Descripci�n del grupo
+6. selection_criteria (json) - Criterios de selecci�n
+7. members_query (text) - Query para miembros din�micos
+8. static_members (json) - Miembros est�ticos
+9. is_emergency_group (boolean, DEFAULT FALSE) - Si es grupo de emergencia
+10. group_priority (int, DEFAULT 100) - Prioridad del grupo
+11. auto_update_enabled (boolean, DEFAULT TRUE) - Auto-actualizaci�n habilitada
+12. last_updated_count (int) - �ltimo conteo de miembros
+13. last_updated_at (timestamp) - �ltima actualizaci�n
+14. created_by_contact_id (int, FK ? CONTACTS) - Creado por
+15. is_active (boolean, DEFAULT TRUE) - Estado activo
+16. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, group_name)
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con CONTACTS (created_by)
+�ndices Sugeridos:
+* INDEX(organization_id, group_type, is_active)
+* INDEX(is_emergency_group, is_active)
+* INDEX(auto_update_enabled)
+
+TABLA 340: NOTIFICATION_ANALYTICS
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. calculation_date (date) - Fecha del c�lculo
+4. calculation_period (varchar(20)) - Per�odo 'DAILY', 'WEEKLY', 'MONTHLY'
+5. notification_type_id (int, FK ? NOTIFICATION_TYPES) - Tipo de notificaci�n
+6. channel_type (varchar(20)) - Canal analizado
+7. total_sent (int, DEFAULT 0) - Total enviadas
+8. total_delivered (int, DEFAULT 0) - Total entregadas
+9. total_failed (int, DEFAULT 0) - Total fallidas
+10. total_opened (int, DEFAULT 0) - Total abiertas
+11. total_clicked (int, DEFAULT 0) - Total con clicks
+12. total_replied (int, DEFAULT 0) - Total con respuestas
+13. total_acknowledged (int, DEFAULT 0) - Total confirmadas
+14. delivery_rate (decimal(5,2)) - Tasa de entrega
+15. open_rate (decimal(5,2)) - Tasa de apertura
+16. click_rate (decimal(5,2)) - Tasa de clicks
+17. response_rate (decimal(5,2)) - Tasa de respuesta
+18. acknowledgment_rate (decimal(5,2)) - Tasa de confirmaci�n
+19. avg_delivery_time_minutes (decimal(8,2)) - Tiempo promedio de entrega
+20. avg_response_time_minutes (decimal(8,2)) - Tiempo promedio de respuesta
+21. total_cost (decimal(10,2)) - Costo total
+22. cost_per_delivery (decimal(6,4)) - Costo por entrega
+23. roi_score (decimal(5,2)) - Score de ROI
+24. satisfaction_score (decimal(3,2)) - Score de satisfacci�n
+25. top_performing_templates (json) - Templates de mejor rendimiento
+26. optimization_suggestions (json) - Sugerencias generadas por IA
+27. calculated_at (timestamp, DEFAULT NOW()) - Fecha de c�lculo
+28. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, calculation_date, calculation_period, notification_type_id, channel_type)
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con NOTIFICATION_TYPES
+�ndices Sugeridos:
+* INDEX(organization_id, calculation_date, calculation_period)
+* INDEX(notification_type_id, channel_type)
+* INDEX(roi_score DESC)
+
+TABLA 341: NOTIFICATION_AUDIT_TRAIL
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. notification_queue_id (int, FK ? NOTIFICATION_QUEUE) - Notificaci�n auditada
+3. audit_event (varchar(50)) - Evento 'SENT', 'DELIVERED', 'OPENED', 'OPT_OUT'
+4. event_timestamp (timestamp, DEFAULT NOW()) - Timestamp del evento
+5. user_contact_id (int, FK ? CONTACTS) - Usuario que ejecut� la acci�n
+6. ip_address (varchar(45)) - Direcci�n IP
+7. user_agent (varchar(255)) - User agent del navegador
+8. event_details (json) - Detalles espec�ficos del evento
+9. compliance_flags (json) - Flags de cumplimiento
+10. gdpr_consent_status (varchar(20)) - Estado del consentimiento GDPR
+11. tcpa_compliance_verified (boolean, DEFAULT FALSE) - Compliance TCPA verificado
+12. data_retention_category (varchar(30)) - Categor�a de retenci�n
+13. anonymization_required (boolean, DEFAULT FALSE) - Si requiere anonimizaci�n
+14. legal_hold_status (varchar(20)) - Estado de retenci�n legal
+15. audit_category (varchar(30)) - Categor�a de auditor�a
+16. risk_level (varchar(20)) - Nivel de riesgo 'LOW', 'MEDIUM', 'HIGH'
+17. geolocation_data (json) - Datos de geolocalizaci�n
+18. retention_years (int, DEFAULT 7) - A�os de retenci�n
+19. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+Restricciones �nicas:
+* Ninguna espec�fica
+Relaciones:
+* Muchos a uno con NOTIFICATION_QUEUE
+* Muchos a uno con CONTACTS
+�ndices Sugeridos:
+* INDEX(notification_queue_id, audit_event)
+* INDEX(event_timestamp, compliance_flags)
+* INDEX(gdpr_consent_status, tcpa_compliance_verified)
+* INDEX(legal_hold_status)
+
+TABLA 342: NOTIFICATION_PREFERENCES
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Contacto propietario de preferencias
+3. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n contexto
+4. notification_type_id (int, FK ? NOTIFICATION_TYPES) - Tipo de notificaci�n
+5. is_enabled (boolean, DEFAULT TRUE) - Si est� habilitado
+6. preferred_channels (json) - Canales preferidos en orden
+7. quiet_hours_start (time) - Inicio horario silencioso
+8. quiet_hours_end (time) - Fin horario silencioso
+9. timezone (varchar(50)) - Zona horaria del usuario
+10. frequency_limit (varchar(20)) - L�mite de frecuencia 'IMMEDIATE', 'DAILY', 'WEEKLY'
+11. email_address (varchar(255)) - Email espec�fico para notificaciones
+12. phone_number (varchar(20)) - Tel�fono espec�fico para notificaciones
+13. sms_enabled (boolean, DEFAULT TRUE) - SMS habilitado
+14. voice_enabled (boolean, DEFAULT FALSE) - Llamadas de voz habilitadas
+15. push_enabled (boolean, DEFAULT TRUE) - Push notifications habilitadas
+16. emergency_override (boolean, DEFAULT TRUE) - Override para emergencias
+17. language_preference (varchar(5), DEFAULT 'en') - Idioma preferido
+18. delivery_confirmation_required (boolean, DEFAULT FALSE) - Requiere confirmaci�n
+19. opt_out_date (timestamp) - Fecha de opt-out
+20. opt_out_reason (varchar(100)) - Raz�n del opt-out
+21. compliance_consent_date (timestamp) - Fecha de consentimiento
+22. gdpr_consent (boolean, DEFAULT FALSE) - Consentimiento GDPR
+23. tcpa_consent (boolean, DEFAULT FALSE) - Consentimiento TCPA
+24. marketing_consent (boolean, DEFAULT FALSE) - Consentimiento marketing
+25. data_processing_consent (boolean, DEFAULT FALSE) - Consentimiento procesamiento
+26. last_interaction_date (timestamp) - �ltima interacci�n
+27. is_active (boolean, DEFAULT TRUE) - Preferencias activas
+28. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+29. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, organization_id, notification_type_id)
+Relaciones:
+* Muchos a uno con CONTACTS
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con NOTIFICATION_TYPES
+�ndices Sugeridos:
+* INDEX(contact_id, is_enabled)
+* INDEX(organization_id, notification_type_id)
+* INDEX(gdpr_consent, tcpa_consent)
+* INDEX(opt_out_date)
+
+TABLA 343: NOTIFICATION_CHANNELS
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. channel_name (varchar(50)) - Nombre del canal
+4. channel_type (varchar(20)) - Tipo 'SMS', 'EMAIL', 'PUSH', 'VOICE', 'WEBHOOK'
+5. provider_name (varchar(30)) - Proveedor 'TWILIO', 'SENDGRID', 'FIREBASE'
+6. configuration (json) - Configuraci�n espec�fica del proveedor
+7. credentials_encrypted (varchar(500)) - Credenciales encriptadas
+8. endpoint_url (varchar(500)) - URL del endpoint
+9. api_version (varchar(20)) - Versi�n de API
+10. rate_limit_per_minute (int) - L�mite de rate por minuto
+11. rate_limit_per_hour (int) - L�mite de rate por hora
+12. rate_limit_per_day (int) - L�mite de rate por d�a
+13. cost_per_message (decimal(6,4)) - Costo por mensaje
+14. currency_code (varchar(3), DEFAULT 'USD') - C�digo de moneda
+15. success_rate_threshold (decimal(5,2), DEFAULT 95.00) - Umbral de tasa de �xito
+16. fallback_channel_id (int, FK ? NOTIFICATION_CHANNELS) - Canal de respaldo
+17. is_primary (boolean, DEFAULT FALSE) - Si es canal primario
+18. supports_rich_content (boolean, DEFAULT FALSE) - Soporta contenido rico
+19. supports_delivery_receipts (boolean, DEFAULT FALSE) - Soporta confirmaciones
+20. supports_two_way (boolean, DEFAULT FALSE) - Soporta comunicaci�n bidireccional
+21. max_message_length (int) - Longitud m�xima del mensaje
+22. allowed_file_types (json) - Tipos de archivo permitidos
+23. max_file_size_mb (decimal(5,2)) - Tama�o m�ximo de archivo
+24. health_check_url (varchar(500)) - URL para health check
+25. last_health_check (timestamp) - �ltimo health check
+26. health_status (varchar(20), DEFAULT 'UNKNOWN') - Estado de salud
+27. error_webhook_url (varchar(500)) - URL para webhooks de error
+28. is_active (boolean, DEFAULT TRUE) - Canal activo
+29. created_by_contact_id (int, FK ? CONTACTS) - Creado por
+30. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+31. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, channel_name)
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con NOTIFICATION_CHANNELS (fallback)
+* Muchos a uno con CONTACTS (created_by)
+�ndices Sugeridos:
+* INDEX(organization_id, channel_type, is_active)
+* INDEX(provider_name, is_active)
+* INDEX(health_status, last_health_check)
+* INDEX(is_primary, channel_type)
+
+TABLA 344: NOTIFICATION_WEBHOOKS
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. webhook_name (varchar(100)) - Nombre del webhook
+4. webhook_url (varchar(500)) - URL del webhook
+5. webhook_type (varchar(30)) - Tipo 'DELIVERY_STATUS', 'FAILURE', 'ANALYTICS'
+6. http_method (varchar(10), DEFAULT 'POST') - M�todo HTTP
+7. headers (json) - Headers HTTP personalizados
+8. authentication_type (varchar(20)) - Tipo autenticaci�n 'NONE', 'BASIC', 'BEARER'
+9. auth_credentials_encrypted (varchar(500)) - Credenciales encriptadas
+10. payload_template (json) - Template del payload
+11. trigger_events (json) - Eventos que activan el webhook
+12. filter_conditions (json) - Condiciones de filtro
+13. retry_policy (json) - Pol�tica de reintentos
+14. timeout_seconds (int, DEFAULT 30) - Timeout en segundos
+15. max_retries (int, DEFAULT 3) - M�ximo n�mero de reintentos
+16. retry_delay_seconds (int, DEFAULT 60) - Delay entre reintentos
+17. success_status_codes (json, DEFAULT '[200, 201, 202]') - C�digos de �xito
+18. last_triggered_at (timestamp) - �ltima vez activado
+19. last_success_at (timestamp) - �ltimo �xito
+20. last_failure_at (timestamp) - �ltima falla
+21. total_calls (int, DEFAULT 0) - Total de llamadas
+22. success_calls (int, DEFAULT 0) - Llamadas exitosas
+23. failed_calls (int, DEFAULT 0) - Llamadas fallidas
+24. success_rate (decimal(5,2)) - Tasa de �xito
+25. avg_response_time_ms (decimal(8,2)) - Tiempo promedio de respuesta
+26. is_active (boolean, DEFAULT TRUE) - Webhook activo
+27. created_by_contact_id (int, FK ? CONTACTS) - Creado por
+28. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+29. updated_at (timestamp, DEFAULT NOW()) - Fecha de actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, webhook_name)
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con CONTACTS (created_by)
+�ndices Sugeridos:
+* INDEX(organization_id, webhook_type, is_active)
+* INDEX(last_triggered_at, success_rate)
+* INDEX(trigger_events)
+
+TABLA 345: NOTIFICATION_PERFORMANCE_METRICS
+M�dulo: NOTIFICATIONS SYSTEM ENTERPRISE
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+3. metric_date (date) - Fecha de la m�trica
+4. metric_hour (int) - Hora de la m�trica (0-23)
+5. channel_type (varchar(20)) - Canal medido
+6. notification_type_id (int, FK ? NOTIFICATION_TYPES) - Tipo de notificaci�n
+7. messages_queued (int, DEFAULT 0) - Mensajes en cola
+8. messages_sent (int, DEFAULT 0) - Mensajes enviados
+9. messages_delivered (int, DEFAULT 0) - Mensajes entregados
+10. messages_failed (int, DEFAULT 0) - Mensajes fallidos
+11. messages_opened (int, DEFAULT 0) - Mensajes abiertos
+12. messages_clicked (int, DEFAULT 0) - Mensajes con clicks
+13. messages_replied (int, DEFAULT 0) - Mensajes con respuestas
+14. avg_queue_time_seconds (decimal(8,2)) - Tiempo promedio en cola
+15. avg_delivery_time_seconds (decimal(8,2)) - Tiempo promedio de entrega
+16. avg_response_time_minutes (decimal(8,2)) - Tiempo promedio de respuesta
+17. peak_queue_size (int) - Tama�o m�ximo de cola
+18. throughput_per_minute (decimal(8,2)) - Throughput por minuto
+19. error_rate (decimal(5,2)) - Tasa de error
+20. retry_rate (decimal(5,2)) - Tasa de reintentos
+21. cost_total (decimal(10,2)) - Costo total
+22. cost_per_message (decimal(6,4)) - Costo por mensaje
+23. revenue_attributed (decimal(12,2)) - Revenue atribuido
+24. roi_calculation (decimal(8,2)) - C�lculo de ROI
+25. customer_satisfaction_score (decimal(3,2)) - Score de satisfacci�n
+26. escalation_count (int, DEFAULT 0) - N�mero de escalaciones
+27. business_impact_score (decimal(5,2)) - Score de impacto empresarial
+28. ai_optimization_applied (boolean, DEFAULT FALSE) - Optimizaci�n IA aplicada
+29. calculated_at (timestamp, DEFAULT NOW()) - Fecha de c�lculo
+30. created_at (timestamp, DEFAULT NOW()) - Fecha de creaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, metric_date, metric_hour, channel_type, notification_type_id)
+Relaciones:
+* Muchos a uno con ORGANIZATIONS
+* Muchos a uno con NOTIFICATION_TYPES
+�ndices Sugeridos:
+* INDEX(organization_id, metric_date, metric_hour)
+* INDEX(channel_type, notification_type_id)
+* INDEX(roi_calculation DESC)
+* INDEX(business_impact_score DESC)
+
+?? RESUMEN DEL M�DULO NOTIFICATIONS SYSTEM ENTERPRISE
+Total de tablas: 16 Campos totales: ~430 campos Relaciones principales: 45+ foreign keys Integraciones externas: Twilio, SendGrid, Firebase, webhooks Capacidades IA: Optimizaci�n de timing, personalizaci�n, analytics predictivos Compliance: GDPR, TCPA, audit trails completos Performance: Rate limiting, fallbacks, health monitoring ROI proyectado: $90,000+ anual por organizaci�n

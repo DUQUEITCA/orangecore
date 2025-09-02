@@ -1,0 +1,741 @@
+TABLA 171: TASK_CATEGORIES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(50)) - Nombre de la categor�a (Roofing, Inspection, Collections)
+3. description (text) - Descripci�n detallada de la categor�a de tareas
+4. color (varchar(7)) - Color hex para UI (#FF5733)
+5. icon (varchar(50)) - Icono para representaci�n visual
+6. is_system_category (boolean, DEFAULT FALSE) - Si es categor�a del sistema inmutable
+7. parent_category_id (int, FK ? TASK_CATEGORIES) - Para jerarqu�a de categor�as
+8. order_sequence (int) - Orden de visualizaci�n en listados
+9. is_active (boolean, DEFAULT TRUE) - Estado activo de la categor�a
+10. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name) - Nombres �nicos de categor�as
+Relaciones:
+* Self-reference para jerarqu�a parent-child
+* One-to-many con COMMON_TASKS
+�ndices Sugeridos:
+* INDEX(parent_category_id, order_sequence)
+
+TABLA 172: COMMON_TASKS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_category_id (int, FK ? TASK_CATEGORIES) - Categor�a de la tarea com�n
+3. name (varchar(100)) - Nombre de tarea est�ndar (Schedule Initial Inspection)
+4. description (text) - Descripci�n completa de la tarea
+5. default_instructions (text) - Instrucciones predeterminadas para ejecutar
+6. estimated_hours (decimal(4,2)) - Horas estimadas por defecto
+7. default_priority (varchar(20)) - Prioridad por defecto (LOW, MEDIUM, HIGH)
+8. auto_assignment_role (varchar(50)) - Rol que recibe auto-asignaci�n
+9. context_types (json) - Array de contextos donde aplica (projects, invoices)
+10. default_due_offset_hours (int) - Horas desde creaci�n hasta due date
+11. requires_checklist (boolean, DEFAULT FALSE) - Si requiere checklist de subtareas
+12. checklist_items (json) - Array de �tems de checklist predefinidos
+13. usage_count (int, DEFAULT 0) - Contador de veces utilizada
+14. is_active (boolean, DEFAULT TRUE) - Estado activo de la tarea com�n
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(task_category_id, name) - Nombres �nicos por categor�a
+Relaciones:
+* Many-to-one con TASK_CATEGORIES
+* One-to-many con TASKS (source template)
+�ndices Sugeridos:
+* INDEX(task_category_id, usage_count DESC)
+* INDEX(auto_assignment_role)
+
+TABLA 173: TASK_TEMPLATES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. template_name (varchar(100)) - Nombre del template de workflow
+3. template_description (text) - Descripci�n del conjunto de tareas
+4. template_category (varchar(50)) - Categor�a (PROJECT_ONBOARDING, COLLECTIONS)
+5. context_type (varchar(30)) - Tipo de contexto (CUSTOMER_PROJECT, EMPLOYEE, INVOICE)
+6. auto_assign_based_on (varchar(50)) - Base para auto-asignaci�n (ROLE, SKILL, WORKLOAD)
+7. tasks_configuration (json) - Array de definiciones de tareas del template
+8. is_public (boolean, DEFAULT FALSE) - Si est� disponible para toda la organizaci�n
+9. created_by_contact_id (int, FK ? CONTACTS) - Creador del template
+10. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria (NULL = global)
+11. usage_count (int, DEFAULT 0) - Veces que se ha utilizado el template
+12. is_active (boolean, DEFAULT TRUE) - Estado activo del template
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, template_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Many-to-one con CONTACTS (creator)
+* Many-to-one con ORGANIZATIONS
+* One-to-many con TASKS (source template)
+�ndices Sugeridos:
+* INDEX(organization_id, template_category)
+* INDEX(context_type, usage_count DESC)
+
+TABLA 174: TASK_STATUSES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(30)) - Nombre del estado (Not Started, In Progress, Completed)
+3. description (text) - Descripci�n del estado de tarea
+4. color (varchar(7)) - Color hex para visualizaci�n (#28A745)
+5. is_completed_status (boolean, DEFAULT FALSE) - Si indica tarea completada
+6. is_default_status (boolean, DEFAULT FALSE) - Si es estado por defecto
+7. order_sequence (int) - Orden en workflow de estados
+8. is_active (boolean, DEFAULT TRUE) - Estado activo del status
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Solo un status puede tener is_default_status = TRUE
+Relaciones:
+* One-to-many con TASKS
+* One-to-many con TASK_STATUS_HISTORY
+�ndices Sugeridos:
+* INDEX(order_sequence)
+* INDEX(is_default_status, is_active)
+
+TABLA 175: TASK_PRIORITIES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. name (varchar(20)) - Nombre de prioridad (Low, Medium, High, Critical)
+3. description (text) - Descripci�n de la prioridad
+4. color (varchar(7)) - Color hex para visualizaci�n (#DC3545 para Critical)
+5. escalation_hours (int) - Horas para auto-escalation
+6. order_sequence (int) - Orden de prioridad (1=highest)
+7. is_active (boolean, DEFAULT TRUE) - Estado activo de la prioridad
+8. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+9. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(name) - Nombres �nicos de prioridades
+Relaciones:
+* One-to-many con TASKS
+* Used by escalation automation
+�ndices Sugeridos:
+* INDEX(order_sequence)
+* INDEX(escalation_hours)
+
+TABLA 176: TASKS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. common_task_id (int, FK ? COMMON_TASKS) - Tarea com�n fuente si aplica
+3. task_template_id (int, FK ? TASK_TEMPLATES) - Template fuente si aplica
+4. parent_task_id (int, FK ? TASKS) - Tarea padre para subtareas
+5. title (varchar(200)) - T�tulo de la tarea espec�fica
+6. description (text) - Descripci�n detallada de la tarea
+7. instructions (text) - Instrucciones espec�ficas para ejecuci�n
+8. assigned_to_contact_id (int, FK ? CONTACTS) - Responsable principal
+9. created_by_contact_id (int, FK ? CONTACTS) - Creador de la tarea
+10. context_id (int) - ID del registro relacionado (project_id, contact_id)
+11. context_table (varchar(50)) - Tabla de contexto (customer_projects, contacts)
+12. context_description (varchar(200)) - Descripci�n legible del contexto
+13. task_status_id (int, FK ? TASK_STATUSES) - Estado actual de la tarea
+14. task_priority_id (int, FK ? TASK_PRIORITIES) - Prioridad de la tarea
+15. due_date (date) - Fecha l�mite de entrega
+16. due_time (time) - Hora l�mite espec�fica
+17. estimated_hours (decimal(4,2)) - Horas estimadas para completar
+18. actual_hours (decimal(4,2)) - Horas reales invertidas
+19. completion_percentage (decimal(5,2)) - Porcentaje de completado (0-100)
+20. source_type (varchar(20)) - Fuente (MANUAL, TEMPLATE, WORKFLOW, EMAIL)
+21. source_id (int) - ID de la fuente que gener� la tarea
+22. source_table (varchar(50)) - Tabla fuente para trazabilidad
+23. is_private (boolean, DEFAULT FALSE) - Si es tarea privada
+24. auto_complete_on_dependency (boolean, DEFAULT FALSE) - Auto-completar al terminar dependencias
+25. auto_assign_on_creation (boolean, DEFAULT FALSE) - Auto-asignar al crear
+26. related_appointment_id (int, FK ? APPOINTMENTS) - Cita relacionada si aplica
+27. started_at (timestamp) - Momento de inicio real
+28. completed_at (timestamp) - Momento de finalizaci�n
+29. waiting_since (timestamp) - Cu�ndo qued� bloqueada
+30. last_activity_at (timestamp) - �ltima actividad registrada
+31. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+32. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite tareas duplicadas intencionalmente)
+Relaciones:
+* Many-to-one con COMMON_TASKS, TASK_TEMPLATES
+* Self-reference para parent-child
+* Many-to-one con CONTACTS (assignee, creator)
+* Many-to-one con TASK_STATUSES, TASK_PRIORITIES
+* One-to-many con TASK_ASSIGNMENTS, TASK_DEPENDENCIES
+* Polymorphic relationship via context_table/context_id
+�ndices Sugeridos:
+* INDEX(assigned_to_contact_id, task_status_id)
+* INDEX(context_table, context_id)
+* INDEX(due_date, task_priority_id)
+* INDEX(parent_task_id)
+
+TABLA 177: TASK_ASSIGNMENTS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea asignada
+3. assigned_to_contact_id (int, FK ? CONTACTS) - Persona asignada
+4. assigned_by_contact_id (int, FK ? CONTACTS) - Quien hizo la asignaci�n
+5. assignment_role (varchar(20)) - Rol en la tarea (PRIMARY, COLLABORATOR, REVIEWER)
+6. assignment_notes (text) - Notas espec�ficas de la asignaci�n
+7. is_accepted (boolean, DEFAULT NULL) - Estado de aceptaci�n (NULL=pending, TRUE=accepted, FALSE=declined)
+8. accepted_at (timestamp) - Momento de aceptaci�n
+9. is_active (boolean, DEFAULT TRUE) - Si la asignaci�n est� activa
+10. assigned_at (timestamp, DEFAULT NOW()) - Momento de asignaci�n
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(task_id, assigned_to_contact_id, assignment_role) - Un rol por persona por tarea
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con CONTACTS (assignee y assigner)
+�ndices Sugeridos:
+* INDEX(assigned_to_contact_id, is_active)
+* INDEX(task_id, assignment_role)
+
+TABLA 178: TASK_DEPENDENCIES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. predecessor_task_id (int, FK ? TASKS) - Tarea que debe completarse antes
+3. successor_task_id (int, FK ? TASKS) - Tarea que depende de la anterior
+4. dependency_type (varchar(20)) - Tipo de dependencia (FINISH_TO_START, START_TO_START)
+5. delay_hours (int, DEFAULT 0) - Horas de retraso despu�s del predecessor
+6. is_hard_dependency (boolean, DEFAULT TRUE) - Si bloquea inicio hasta completar predecessor
+7. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+8. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(predecessor_task_id, successor_task_id) - Una dependencia por par de tareas
+Relaciones:
+* Many-to-one con TASKS (predecessor y successor)
+* Used by task automation engine
+�ndices Sugeridos:
+* INDEX(predecessor_task_id)
+* INDEX(successor_task_id)
+
+TABLA 179: TASK_SUBTASKS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. parent_task_id (int, FK ? TASKS) - Tarea padre contenedora
+3. subtask_title (varchar(200)) - T�tulo de la subtarea
+4. subtask_description (text) - Descripci�n de la subtarea espec�fica
+5. assigned_to_contact_id (int, FK ? CONTACTS) - Responsable de la subtarea
+6. is_completed (boolean, DEFAULT FALSE) - Si est� completada
+7. completion_notes (text) - Notas de finalizaci�n
+8. completed_by_contact_id (int, FK ? CONTACTS) - Quien complet� la subtarea
+9. completed_at (timestamp) - Momento de finalizaci�n
+10. order_sequence (int) - Orden en el checklist
+11. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+12. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite subtareas duplicadas)
+Relaciones:
+* Many-to-one con TASKS (parent)
+* Many-to-one con CONTACTS (assignee y completer)
+�ndices Sugeridos:
+* INDEX(parent_task_id, order_sequence)
+* INDEX(assigned_to_contact_id, is_completed)
+
+TABLA 180: TASK_TIME_ENTRIES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea a la que se registra tiempo
+3. contact_id (int, FK ? CONTACTS) - Persona que registra el tiempo
+4. start_time (timestamp) - Inicio del per�odo de trabajo
+5. end_time (timestamp) - Fin del per�odo de trabajo
+6. duration_hours (decimal(4,2)) - Duraci�n en horas (calculada o manual)
+7. entry_type (varchar(20)) - Tipo de entrada (TIMER, MANUAL, IMPORTED)
+8. description (text) - Descripci�n del trabajo realizado
+9. is_billable (boolean, DEFAULT TRUE) - Si el tiempo es facturable
+10. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples entradas de tiempo)
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con CONTACTS
+* Used by billing and payroll systems
+�ndices Sugeridos:
+* INDEX(task_id, start_time)
+* INDEX(contact_id, start_time)
+* INDEX(is_billable, start_time)
+
+TABLA 181: TASK_STATUS_HISTORY
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea con cambio de estado
+3. previous_status_id (int, FK ? TASK_STATUSES) - Estado anterior
+4. new_status_id (int, FK ? TASK_STATUSES) - Nuevo estado
+5. previous_assigned_to_contact_id (int, FK ? CONTACTS) - Anterior responsable
+6. new_assigned_to_contact_id (int, FK ? CONTACTS) - Nuevo responsable
+7. change_reason (text) - Raz�n del cambio de estado
+8. changed_by_contact_id (int, FK ? CONTACTS) - Quien hizo el cambio
+9. changed_at (timestamp, DEFAULT NOW()) - Momento del cambio
+10. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+11. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples cambios)
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con TASK_STATUSES (previous y new)
+* Many-to-one con CONTACTS (multiple roles)
+�ndices Sugeridos:
+* INDEX(task_id, changed_at)
+* INDEX(changed_by_contact_id, changed_at)
+
+TABLA 182: TASK_PIPELINES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. pipeline_name (varchar(100)) - Nombre del pipeline de automatizaci�n
+3. pipeline_description (text) - Descripci�n del flujo automatizado
+4. trigger_context (varchar(50)) - Contexto que dispara (PROJECT_CREATED, INVOICE_OVERDUE)
+5. trigger_conditions (json) - Condiciones espec�ficas para activaci�n
+6. pipeline_steps (json) - Array de pasos del pipeline
+7. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+8. created_by_contact_id (int, FK ? CONTACTS) - Creador del pipeline
+9. is_active (boolean, DEFAULT TRUE) - Si el pipeline est� activo
+10. execution_count (int, DEFAULT 0) - Veces que se ha ejecutado
+11. success_rate (decimal(5,2)) - Porcentaje de ejecuciones exitosas
+12. last_executed_at (timestamp) - �ltima ejecuci�n
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, pipeline_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Many-to-one con ORGANIZATIONS
+* Many-to-one con CONTACTS (creator)
+* One-to-many con TASK_PIPELINE_EXECUTIONS
+�ndices Sugeridos:
+* INDEX(organization_id, is_active)
+* INDEX(trigger_context)
+
+TABLA 183: TASK_PIPELINE_EXECUTIONS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_pipeline_id (int, FK ? TASK_PIPELINES) - Pipeline ejecutado
+3. execution_trigger (varchar(100)) - Qu� dispar� esta ejecuci�n espec�fica
+4. trigger_data (json) - Datos del contexto que dispar�
+5. execution_status (varchar(20)) - Estado (RUNNING, COMPLETED, FAILED, CANCELLED)
+6. tasks_created (json) - Array de IDs de tareas creadas
+7. execution_logs (json) - Logs detallados de la ejecuci�n
+8. error_details (text) - Detalles de errores si fall�
+9. started_at (timestamp) - Inicio de la ejecuci�n
+10. completed_at (timestamp) - Finalizaci�n de la ejecuci�n
+11. duration_seconds (int) - Duraci�n total en segundos
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples ejecuciones)
+Relaciones:
+* Many-to-one con TASK_PIPELINES
+* Connected to multiple TASKS via tasks_created JSON
+�ndices Sugeridos:
+* INDEX(task_pipeline_id, started_at)
+* INDEX(execution_status, started_at)
+
+TABLA 184: TASK_AUTOMATION_RULES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. rule_name (varchar(100)) - Nombre de la regla de automatizaci�n
+3. rule_description (text) - Descripci�n de qu� hace la regla
+4. trigger_event (varchar(50)) - Evento que dispara (TASK_OVERDUE, STATUS_CHANGED)
+5. trigger_conditions (json) - Condiciones espec�ficas para activar
+6. action_type (varchar(30)) - Tipo de acci�n (ESCALATE, REASSIGN, NOTIFY)
+7. action_config (json) - Configuraci�n espec�fica de la acci�n
+8. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+9. is_active (boolean, DEFAULT TRUE) - Si la regla est� activa
+10. execution_count (int, DEFAULT 0) - Veces que se ha ejecutado
+11. last_executed_at (timestamp) - �ltima ejecuci�n
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, rule_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Many-to-one con ORGANIZATIONS
+* Connected to TASK_ALERTS when triggered
+�ndices Sugeridos:
+* INDEX(organization_id, trigger_event, is_active)
+
+TABLA 185: TASK_ALERTS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea que gener� la alerta
+3. alert_type (varchar(30)) - Tipo de alerta (OVERDUE, ESCALATION, DEPENDENCY_BLOCKED)
+4. alert_message (varchar(255)) - Mensaje de la alerta
+5. alert_details (json) - Detalles adicionales del contexto
+6. target_contact_id (int, FK ? CONTACTS) - Destinatario de la alerta
+7. triggered_by_rule_id (int, FK ? TASK_AUTOMATION_RULES) - Regla que dispar�
+8. is_read (boolean, DEFAULT FALSE) - Si la alerta ha sido le�da
+9. is_dismissed (boolean, DEFAULT FALSE) - Si fue descartada
+10. action_taken (varchar(200)) - Acci�n tomada en respuesta
+11. triggered_at (timestamp, DEFAULT NOW()) - Momento de la alerta
+12. read_at (timestamp) - Momento de lectura
+13. dismissed_at (timestamp) - Momento de descarte
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples alertas)
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con CONTACTS (target)
+* Many-to-one con TASK_AUTOMATION_RULES
+�ndices Sugeridos:
+* INDEX(target_contact_id, is_read, triggered_at)
+* INDEX(task_id, alert_type)
+
+TABLA 186: EMAIL_TASK_REQUESTS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. email_id (int, FK ? EMAILS) - Email que contiene la solicitud
+3. from_contact_id (int, FK ? CONTACTS) - Remitente del email
+4. to_contact_id (int, FK ? CONTACTS) - Destinatario que debe crear tarea
+5. extracted_task_title (varchar(200)) - T�tulo extra�do por AI
+6. extracted_description (text) - Descripci�n extra�da del email
+7. suggested_due_date (date) - Fecha l�mite sugerida por AI
+8. suggested_priority (varchar(20)) - Prioridad sugerida
+9. confidence_score (decimal(5,2)) - Confianza del AI (0-100)
+10. processing_status (varchar(20)) - Estado (PENDING, PROCESSED, REJECTED)
+11. created_task_id (int, FK ? TASKS) - Tarea creada si fue procesada
+12. rejection_reason (text) - Raz�n si fue rechazada
+13. processed_by_contact_id (int, FK ? CONTACTS) - Quien proces� la solicitud
+14. processed_at (timestamp) - Momento de procesamiento
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(email_id) - Un email genera una sola solicitud de tarea
+Relaciones:
+* Many-to-one con EMAILS
+* Many-to-one con CONTACTS (multiple roles)
+* Many-to-one con TASKS (created task)
+�ndices Sugeridos:
+* INDEX(to_contact_id, processing_status)
+* INDEX(confidence_score DESC, processing_status)
+
+TABLA 187: TASK_ATTACHMENTS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea a la que se adjunta
+3. document_id (int, FK ? DOCUMENTS) - Documento adjuntado
+4. attachment_type (varchar(20)) - Tipo (REFERENCE, DELIVERABLE, PROOF)
+5. description (varchar(255)) - Descripci�n del adjunto
+6. uploaded_by_contact_id (int, FK ? CONTACTS) - Quien subi� el archivo
+7. is_required (boolean, DEFAULT FALSE) - Si es requerido para completar tarea
+8. uploaded_at (timestamp, DEFAULT NOW()) - Momento de carga
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples attachments)
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con DOCUMENTS
+* Many-to-one con CONTACTS (uploader)
+�ndices Sugeridos:
+* INDEX(task_id, attachment_type)
+* INDEX(uploaded_by_contact_id, uploaded_at)
+
+TABLA 188: TASK_MOBILE_PREFERENCES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Usuario con preferencias m�viles
+3. sync_offline_tasks (boolean, DEFAULT TRUE) - Sincronizar tareas para offline
+4. offline_sync_days (int, DEFAULT 7) - D�as de tareas para sincronizar
+5. push_notifications_enabled (boolean, DEFAULT TRUE) - Notificaciones push activas
+6. notification_types (json) - Tipos de notificaciones habilitadas
+7. auto_clock_in_enabled (boolean, DEFAULT FALSE) - Auto check-in al empezar tarea
+8. location_tracking_enabled (boolean, DEFAULT FALSE) - Tracking de ubicaci�n
+9. photo_compression_level (varchar(10), DEFAULT 'MEDIUM') - Nivel de compresi�n (LOW, MEDIUM, HIGH)
+10. auto_upload_photos (boolean, DEFAULT TRUE) - Subida autom�tica de fotos
+11. last_sync_at (timestamp) - �ltima sincronizaci�n exitosa
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id) - Un registro por usuario
+Relaciones:
+* One-to-one con CONTACTS
+* Used by mobile applications
+�ndices Sugeridos:
+* INDEX(contact_id, last_sync_at)
+
+TABLA 189: TASK_RECURRENCE_PATTERNS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. pattern_name (varchar(100)) - Nombre del patr�n (Weekly Safety Check)
+3. recurrence_type (varchar(20)) - Tipo (DAILY, WEEKLY, MONTHLY, YEARLY, CUSTOM)
+4. interval_value (int) - Intervalo (cada X d�as/semanas/meses)
+5. days_of_week (json) - Array de d�as si es semanal [1,2,3,4,5]
+6. day_of_month (int) - D�a del mes si es mensual
+7. months_of_year (json) - Array de meses si es anual [1,6,12]
+8. custom_pattern (json) - Patr�n personalizado complejo
+9. task_template_data (json) - Template de tarea para crear
+10. organization_id (int, FK ? ORGANIZATIONS) - Organizaci�n propietaria
+11. created_by_contact_id (int, FK ? CONTACTS) - Creador del patr�n
+12. is_active (boolean, DEFAULT TRUE) - Si el patr�n est� activo
+13. next_execution_date (date) - Pr�xima fecha de ejecuci�n
+14. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+15. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(organization_id, pattern_name) - Nombres �nicos por organizaci�n
+Relaciones:
+* Many-to-one con ORGANIZATIONS
+* Many-to-one con CONTACTS (creator)
+* One-to-many con TASK_RECURRENCE_INSTANCES
+�ndices Sugeridos:
+* INDEX(organization_id, next_execution_date, is_active)
+
+TABLA 190: TASK_RECURRENCE_INSTANCES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. recurrence_pattern_id (int, FK ? TASK_RECURRENCE_PATTERNS) - Patr�n que gener�
+3. scheduled_date (date) - Fecha programada para esta instancia
+4. actual_creation_date (date) - Fecha real de creaci�n de tarea
+5. created_task_id (int, FK ? TASKS) - Tarea creada para esta instancia
+6. execution_status (varchar(20)) - Estado (PENDING, CREATED, SKIPPED, FAILED)
+7. skip_reason (varchar(100)) - Raz�n si fue saltada
+8. error_details (text) - Detalles si fall� la creaci�n
+9. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+10. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(recurrence_pattern_id, scheduled_date) - Una instancia por fecha por patr�n
+Relaciones:
+* Many-to-one con TASK_RECURRENCE_PATTERNS
+* Many-to-one con TASKS (created task)
+�ndices Sugeridos:
+* INDEX(recurrence_pattern_id, scheduled_date)
+* INDEX(execution_status, scheduled_date)
+
+TABLA 191: TASK_ASSIGNMENT_SUGGESTIONS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea para la cual se sugiere asignaci�n
+3. suggested_contact_id (int, FK ? CONTACTS) - Persona sugerida
+4. suggestion_source (varchar(30)) - Fuente (AI_WORKLOAD, AI_SKILLS, HISTORICAL)
+5. confidence_score (decimal(5,2)) - Confianza en la sugerencia (0-100)
+6. reasoning (text) - Explicaci�n de por qu� se sugiere
+7. workload_factor (decimal(5,2)) - Factor de carga de trabajo actual
+8. skill_match_score (decimal(5,2)) - Puntuaci�n de coincidencia de habilidades
+9. historical_performance (decimal(5,2)) - Performance hist�rica en tareas similares
+10. is_accepted (boolean, DEFAULT NULL) - Si fue aceptada la sugerencia
+11. accepted_by_contact_id (int, FK ? CONTACTS) - Quien acept�/rechaz�
+12. accepted_at (timestamp) - Momento de decisi�n
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(task_id, suggested_contact_id) - Una sugerencia por persona por tarea
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con CONTACTS (suggested y accepter)
+�ndices Sugeridos:
+* INDEX(task_id, confidence_score DESC)
+* INDEX(suggested_contact_id, is_accepted)
+
+TABLA 192: TASK_COLLABORATION_THREADS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea sobre la que se colabora
+3. thread_title (varchar(200)) - T�tulo del hilo de discusi�n
+4. thread_type (varchar(20)) - Tipo (DISCUSSION, QUESTION, ISSUE, UPDATE)
+5. created_by_contact_id (int, FK ? CONTACTS) - Iniciador del hilo
+6. is_resolved (boolean, DEFAULT FALSE) - Si el hilo est� resuelto
+7. resolved_by_contact_id (int, FK ? CONTACTS) - Quien marc� como resuelto
+8. resolved_at (timestamp) - Momento de resoluci�n
+9. last_message_at (timestamp) - �ltimo mensaje en el hilo
+10. participant_count (int, DEFAULT 0) - N�mero de participantes
+11. message_count (int, DEFAULT 0) - N�mero de mensajes
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples hilos por tarea)
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con CONTACTS (creator y resolver)
+* One-to-many con TASK_COLLABORATION_MESSAGES
+�ndices Sugeridos:
+* INDEX(task_id, last_message_at DESC)
+* INDEX(created_by_contact_id, is_resolved)
+
+TABLA 193: TASK_COLLABORATION_MESSAGES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. collaboration_thread_id (int, FK ? TASK_COLLABORATION_THREADS) - Hilo contenedor
+3. parent_message_id (int, FK ? TASK_COLLABORATION_MESSAGES) - Mensaje padre si es respuesta
+4. sender_contact_id (int, FK ? CONTACTS) - Remitente del mensaje
+5. message_content (text) - Contenido del mensaje
+6. message_type (varchar(20)) - Tipo (TEXT, STATUS_UPDATE, FILE_SHARE)
+7. mentioned_contacts (json) - Array de contact_ids mencionados con @
+8. attachments (json) - Array de attachments al mensaje
+9. is_edited (boolean, DEFAULT FALSE) - Si el mensaje fue editado
+10. edited_at (timestamp) - Momento de �ltima edici�n
+11. sent_at (timestamp, DEFAULT NOW()) - Momento de env�o
+12. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+13. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples mensajes)
+Relaciones:
+* Many-to-one con TASK_COLLABORATION_THREADS
+* Self-reference para parent-child messages
+* Many-to-one con CONTACTS (sender)
+�ndices Sugeridos:
+* INDEX(collaboration_thread_id, sent_at)
+* INDEX(sender_contact_id, sent_at)
+
+TABLA 194: TASK_STATUS_UPDATES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea con actualizaci�n de estado
+3. update_type (varchar(30)) - Tipo (PROGRESS, MILESTONE, BLOCKER, COMPLETION)
+4. update_title (varchar(200)) - T�tulo de la actualizaci�n
+5. update_description (text) - Descripci�n detallada del progreso
+6. progress_percentage (decimal(5,2)) - Porcentaje de progreso reportado
+7. hours_worked (decimal(4,2)) - Horas trabajadas en este per�odo
+8. blockers_identified (text) - Obst�culos identificados
+9. next_steps (text) - Pr�ximos pasos planificados
+10. attachments (json) - Evidencia fotogr�fica o documentos
+11. reported_by_contact_id (int, FK ? CONTACTS) - Quien reporta el estado
+12. is_milestone (boolean, DEFAULT FALSE) - Si marca un hito importante
+13. milestone_name (varchar(100)) - Nombre del hito si aplica
+14. reported_at (timestamp, DEFAULT NOW()) - Momento del reporte
+15. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+16. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples actualizaciones)
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con CONTACTS (reporter)
+�ndices Sugeridos:
+* INDEX(task_id, reported_at DESC)
+* INDEX(reported_by_contact_id, is_milestone)
+
+TABLA 195: TASK_ESTIMATION_HISTORY
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea con historial de estimaciones
+3. estimator_contact_id (int, FK ? CONTACTS) - Quien hizo la estimaci�n
+4. estimated_hours (decimal(4,2)) - Horas estimadas
+5. estimation_method (varchar(30)) - M�todo (EXPERT_JUDGMENT, HISTORICAL, AI_POWERED)
+6. historical_tasks_referenced (json) - IDs de tareas similares usadas como referencia
+7. estimation_confidence (decimal(5,2)) - Confianza en la estimaci�n (0-100)
+8. estimation_rationale (text) - Explicaci�n de la estimaci�n
+9. actual_hours_final (decimal(4,2)) - Horas reales al completar (backfilled)
+10. variance_percentage (decimal(6,2)) - Diferencia entre estimado y real
+11. estimation_accuracy (varchar(20)) - Precisi�n (UNDER, ACCURATE, OVER)
+12. estimated_at (timestamp, DEFAULT NOW()) - Momento de estimaci�n
+13. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+14. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples estimaciones)
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con CONTACTS (estimator)
+* Used by AI for improving future estimations
+�ndices Sugeridos:
+* INDEX(task_id, estimated_at)
+* INDEX(estimator_contact_id, estimation_accuracy)
+
+TABLA 196: TASK_PERFORMANCE_METRICS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea con m�tricas de performance
+3. assignee_contact_id (int, FK ? CONTACTS) - Responsable evaluado
+4. completion_time_hours (decimal(6,2)) - Tiempo total de finalizaci�n
+5. quality_score (decimal(5,2)) - Puntuaci�n de calidad (0-100)
+6. efficiency_score (decimal(5,2)) - Puntuaci�n de eficiencia (0-100)
+7. deadline_adherence (varchar(20)) - Cumplimiento (EARLY, ON_TIME, LATE)
+8. days_variance_from_due (int) - D�as de diferencia vs fecha l�mite
+9. rework_required (boolean, DEFAULT FALSE) - Si requiri� retrabajo
+10. rework_hours (decimal(4,2)) - Horas adicionales por retrabajo
+11. customer_satisfaction (decimal(3,1)) - Satisfacci�n del cliente (1-10)
+12. collaboration_rating (decimal(3,1)) - Calificaci�n de colaboraci�n (1-10)
+13. innovation_points (int, DEFAULT 0) - Puntos por innovaci�n/mejoras
+14. measured_at (timestamp, DEFAULT NOW()) - Momento de medici�n
+15. measured_by_contact_id (int, FK ? CONTACTS) - Quien midi� performance
+16. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+17. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(task_id) - Una medici�n por tarea
+Relaciones:
+* One-to-one con TASKS
+* Many-to-one con CONTACTS (assignee y measurer)
+* Used by AI for performance predictions
+�ndices Sugeridos:
+* INDEX(assignee_contact_id, quality_score DESC)
+* INDEX(measured_at, efficiency_score DESC)
+
+TABLA 197: TASK_AI_SUGGESTIONS
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. task_id (int, FK ? TASKS) - Tarea para la cual se sugiere
+3. suggestion_type (varchar(30)) - Tipo (OPTIMIZATION, AUTOMATION, RESOURCE_REALLOCATION)
+4. suggestion_title (varchar(200)) - T�tulo de la sugerencia
+5. suggestion_description (text) - Descripci�n detallada de la mejora
+6. expected_benefit (text) - Beneficio esperado de implementar
+7. confidence_score (decimal(5,2)) - Confianza del AI (0-100)
+8. potential_time_savings (decimal(4,2)) - Horas que se podr�an ahorrar
+9. potential_cost_savings (decimal(10,2)) - Ahorro econ�mico estimado
+10. implementation_complexity (varchar(20)) - Complejidad (LOW, MEDIUM, HIGH)
+11. ai_model_version (varchar(50)) - Versi�n del modelo que gener�
+12. data_sources_used (json) - Fuentes de datos para la sugerencia
+13. is_implemented (boolean, DEFAULT FALSE) - Si fue implementada
+14. implementation_feedback (text) - Feedback de la implementaci�n
+15. generated_at (timestamp, DEFAULT NOW()) - Momento de generaci�n
+16. reviewed_by_contact_id (int, FK ? CONTACTS) - Quien revis� la sugerencia
+17. reviewed_at (timestamp) - Momento de revisi�n
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* Ninguna espec�fica (permite m�ltiples sugerencias)
+Relaciones:
+* Many-to-one con TASKS
+* Many-to-one con CONTACTS (reviewer)
+* Connected to AI/ML models for continuous learning
+�ndices Sugeridos:
+* INDEX(task_id, confidence_score DESC)
+* INDEX(suggestion_type, is_implemented)
+
+TABLA 198: TASK_GAMIFICATION_SCORES
+M�dulo: TASKS MANAGEMENT
+Campos:
+1. id (int, PK) - Primary key autoincremental
+2. contact_id (int, FK ? CONTACTS) - Usuario con puntuaciones de gamificaci�n
+3. period_type (varchar(20)) - Per�odo (DAILY, WEEKLY, MONTHLY, YEARLY)
+4. period_start_date (date) - Inicio del per�odo de medici�n
+5. period_end_date (date) - Final del per�odo de medici�n
+6. tasks_completed (int, DEFAULT 0) - Tareas completadas en el per�odo
+7. tasks_completed_early (int, DEFAULT 0) - Tareas terminadas antes de tiempo
+8. quality_points (int, DEFAULT 0) - Puntos por calidad del trabajo
+9. collaboration_points (int, DEFAULT 0) - Puntos por colaboraci�n efectiva
+10. innovation_points (int, DEFAULT 0) - Puntos por innovaci�n/mejoras
+11. efficiency_points (int, DEFAULT 0) - Puntos por eficiencia en tiempo
+12. total_score (int, DEFAULT 0) - Puntuaci�n total del per�odo
+13. rank_in_organization (int) - Posici�n en ranking organizacional
+14. achievements_unlocked (json) - Array de logros obtenidos
+15. streak_days (int, DEFAULT 0) - D�as consecutivos de alta performance
+16. longest_streak (int, DEFAULT 0) - Racha m�s larga hist�rica
+17. calculated_at (timestamp, DEFAULT NOW()) - Momento de c�lculo
+18. created_at (timestamp, DEFAULT NOW()) - Timestamp de creaci�n
+19. updated_at (timestamp, DEFAULT NOW()) - Timestamp de �ltima actualizaci�n
+Restricciones �nicas:
+* UNIQUE(contact_id, period_type, period_start_date) - Una puntuaci�n por per�odo por usuario
+Relaciones:
+* Many-to-one con CONTACTS
+* Used by performance dashboards and employee engagement
+�ndices Sugeridos:
+* INDEX(contact_id, period_type, period_start_date)
+* INDEX(period_type, total_score DESC, period_start_date)
