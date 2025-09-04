@@ -837,3 +837,106 @@ Entonces, en resumen:
 * **Para la próxima vez:** Puedes pegar el registro o simplemente dame un resumen claro.
 
 Cualquiera de las dos opciones me permitirá continuar trabajando en este proyecto contigo sin problemas. ¡Cuando estés listo, solo avísame!
+
+
+//// DEPENDENCIAS ////
+### 1. Tablas de Base (Sin Dependencias)
+
+Estas tablas no tienen claves foráneas que referencien a otras tablas en el esquema, por lo que pueden ser las primeras en actualizarse en cualquier orden:
+
+* `role_types`
+* `properties`
+
+---
+
+### 2. Tablas con Dependencias de Nivel 1
+
+Estas tablas dependen directamente de las tablas base o de sí mismas. Deben actualizarse después de las tablas del Nivel 1.
+
+* `organizations` (tiene una dependencia de sí misma a través de `parent_id`, pero no a otras tablas).
+* `lead_sources` (depende de `organizations`).
+* `lead_statuses` (depende de `organizations`).
+
+---
+
+### 3. Tablas con Dependencias de Nivel 2
+
+Este grupo de tablas depende de las tablas del nivel anterior, por lo que deben ser actualizadas después.
+
+* `contacts` (depende de `lead_sources` y `lead_statuses`).
+* `roles` (depende de `organizations` y `role_types`).
+* `organization_settings` (depende de `organizations`).
+* `organization_integrations` (depende de `organizations`).
+* `property_images` (depende de `properties`).
+* `property_notes` (depende de `properties`).
+* `property_batch_data` (depende de `properties`).
+* `payroll_records` (depende de `contacts`).
+
+---
+
+### 4. Tablas con Dependencias de Nivel 3
+
+Estas tablas dependen de las tablas de los niveles 1, 2 y 3.
+
+* `persons` (depende de `contacts`).
+* `companies` (depende de `contacts`).
+* `phones` (depende de `contacts`).
+* `emails` (depende de `contacts`).
+* `avatars` (depende de `contacts`).
+* `property_visits` (depende de `properties` y `contacts`).
+* `users` (depende de `contacts`).
+* `employee_personal_info` (depende de `contacts`).
+* `employee_emergency_contacts` (depende de `contacts`).
+* `employee_banking_info` (depende de `contacts`).
+* `employee_documents` (depende de `contacts`).
+* `payroll_deductions` (depende de `payroll_records`).
+
+---
+
+### 5. Tablas con Dependencias de Nivel 4
+
+* `contact_organization_roles` (depende de `contacts`, `organizations`, y `roles`).
+* `password_reset_tokens` (depende de `users`).
+* `user_sessions` (depende de `users`).
+* `audit_log` (depende de `organizations`, `contacts` y `users`).
+
+---
+
+### Resumen del Orden de Actualización
+
+Aquí está la secuencia de actualización recomendada para evitar errores de integridad referencial:
+
+1.  **`role_types`, `properties`**
+2.  **`organizations`, `lead_sources`, `lead_statuses`**
+3.  **`contacts`, `roles`, `organization_settings`, `organization_integrations`, `property_images`, `property_notes`, `property_batch_data`, `payroll_records`**
+4.  **`persons`, `companies`, `phones`, `emails`, `avatars`, `property_visits`, `users`, `employee_personal_info`, `employee_emergency_contacts`, `employee_banking_info`, `employee_documents`, `payroll_deductions`**
+5.  **`contact_organization_roles`, `password_reset_tokens`, `user_sessions`, `audit_log`**
+
+
+//// EJEMPLO DE CARGA DE BASE FOUNDATION ////
+¡Claro\! La tabla `role_types` es fundamental porque define los roles base o "maestros" que luego se asignarán a las organizaciones y a los usuarios. Su contenido debe ser genérico y no estar ligado a una organización específica.
+
+Aquí tienes un ejemplo de cómo podrías poblar esta tabla con datos iniciales (o "semilla"):
+
+```sql
+INSERT INTO base_foundation.role_types (id, role_name, description, permissions_json, is_system_role, created_at, updated_at) VALUES
+(1, 'Super Administrator', 'Control total sobre el sistema, todos los módulos y organizaciones. Solo para usuarios de la plataforma principal.', '{"permissions": ["*"]}', TRUE, NOW(), NOW()),
+(2, 'Platform Support', 'Acceso de soporte para diagnóstico de problemas y asistencia, con acceso restringido a datos sensibles.', '{"permissions": ["view:all", "diagnose:all"]}', TRUE, NOW(), NOW()),
+(3, 'Organization Owner', 'Control total sobre la organización a la que pertenece y todos sus datos. Puede gestionar usuarios y roles de la organización.', '{"permissions": ["org:full_control"]}', FALSE, NOW(), NOW()),
+(4, 'Organization Manager', 'Control de gestión dentro de la organización, sin poder para eliminar la organización o cambiar la configuracion principal.', '{"permissions": ["org:manage_users", "org:manage_leads", "org:manage_properties"]}', FALSE, NOW(), NOW()),
+(5, 'Sales Representative', 'Rol de ventas para gestionar leads, contactos y propiedades asignadas.', '{"permissions": ["leads:view", "leads:edit", "contacts:view", "contacts:edit", "properties:view"]}', FALSE, NOW(), NOW()),
+(6, 'Standard User', 'Acceso básico a la organización y los datos que le han sido asignados explícitamente.', '{"permissions": ["contacts:view", "properties:view_assigned"]}', FALSE, NOW(), NOW());
+```
+
+### Explicación del Contenido
+
+  * **`id`**: Un identificador único para cada tipo de rol.
+  * **`role_name`**: Un nombre descriptivo del rol. Es el campo con la restricción `UNIQUE`, lo que significa que no puede haber dos roles con el mismo nombre.
+  * **`description`**: Una breve descripción para entender el propósito del rol.
+  * **`permissions_json`**: Este es un campo clave de tipo `JSONB`. En lugar de tener una tabla separada para cada permiso, se usa un JSON para almacenar un conjunto flexible de permisos para cada rol. Esto facilita la adición de nuevos permisos sin modificar el esquema de la base de datos.
+      * ` "*"  `: Indica control total.
+      * `"org:full_control"`: Permisos específicos a nivel de organización.
+      * `"leads:view"`: Permisos a nivel de módulo (CRM, propiedades, etc.).
+  * **`is_system_role`**: Un booleano que indica si el rol es parte del sistema principal (`TRUE`) o si es un rol genérico que una organización puede asignar (`FALSE`). Los roles de sistema no suelen ser modificables por los usuarios finales.
+
+Este enfoque modular y jerárquico permite crear un sistema de permisos muy flexible y fácil de mantener. Primero se definen los tipos de roles (`role_types`), luego estos tipos se asignan a roles específicos dentro de las organizaciones (`roles`), y finalmente, estos roles se asignan a contactos (`contact_organization_roles`).

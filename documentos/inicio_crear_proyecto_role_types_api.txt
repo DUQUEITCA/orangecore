@@ -1,0 +1,289 @@
+Para un proyecto de API web en ASP.NET que gestione la tabla role_types en PostgreSQL, necesitamos los siguientes componentes:
+
+Proyecto ASP.NET Web API: Un esqueleto de proyecto para los endpoints HTTP.
+
+Modelo de Datos: Una clase en C# que represente la tabla role_types.
+
+Capa de Acceso a Datos (Repository): Una clase para las operaciones CRUD con la base de datos usando Dapper.
+
+Controlador: La clase que maneja las peticiones HTTP y llama a la capa de acceso a datos.
+
+Configuración: Archivo appsettings.json para la cadena de conexión.
+
+A continuación, te proporciono el procedimiento y el código necesario para lograrlo.
+
+Procedimiento de Configuración y Código
+Paso 1: Creación del Proyecto
+Primero, debes crear un nuevo proyecto de API web usando la terminal.
+
+Bash
+
+# Crea un nuevo proyecto llamado RoleTypesApi
+dotnet new webapi -n RoleTypesApi
+
+# Navega al directorio del proyecto
+cd RoleTypesApi
+
+Paso 2: Instalación de Dependencias
+Necesitamos Npgsql para la conexión a PostgreSQL y Dapper para un mapeo ORM ligero que nos permita interactuar con la base de datos de manera eficiente.
+
+Bash
+
+# Instala el proveedor de datos de PostgreSQL
+dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL
+
+# Instala el micro-ORM para acceso a datos
+dotnet add package Dapper
+
+Paso 3: Configuración de la Conexión a la Base de Datos
+Abre el archivo appsettings.json y añade la cadena de conexión a tu base de datos PostgreSQL.
+appsettings.json
+3 sept, 19:35
+
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "PostgresConnection": "Server=localhost;Port=5432;Database=your_database_name;User Id=your_user;Password=your_password;"
+  }
+}
+
+
+Paso 4: Creación del Modelo
+Crea un archivo llamado RoleType.cs dentro de la carpeta Models. Este archivo contendrá la clase que mapea la tabla role_types.
+RoleType Model
+3 sept, 19:35
+
+Abrir
+
+using System.Text.Json;
+
+namespace RoleTypesApi.Models
+{
+    public class RoleType
+    {
+        public int Id { get; set; }
+        public string RoleName { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public JsonDocument? PermissionsJson { get; set; }
+        public bool IsSystemRole { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+}
+
+
+Paso 5: Creación del Repositorio (Data Access Layer)
+Crea una carpeta llamada Repositories y dentro, un archivo IRoleTypeRepository.cs para definir la interfaz, y otro archivo RoleTypeRepository.cs con la implementación.
+RoleType Repository Interface
+3 sept, 19:35
+
+Abrir
+RoleType Repository
+3 sept, 19:35
+
+Abrir
+
+using RoleTypesApi.Models;
+
+namespace RoleTypesApi.Repositories
+{
+    public interface IRoleTypeRepository
+    {
+        Task<IEnumerable<RoleType>> GetAll();
+        Task<RoleType?> GetById(int id);
+        Task<RoleType> Create(RoleType roleType);
+        Task<RoleType?> Update(RoleType roleType);
+        Task<bool> Delete(int id);
+    }
+}
+
+using System.Data;
+using Dapper;
+using Npgsql;
+using RoleTypesApi.Models;
+
+namespace RoleTypesApi.Repositories
+{
+    public class RoleTypeRepository : IRoleTypeRepository
+    {
+        private readonly string _connectionString;
+
+        public RoleTypeRepository(IConfiguration configuration)
+        {
+            _connectionString = configuration.GetConnectionString("PostgresConnection") ?? throw new InvalidOperationException("Connection string 'PostgresConnection' not found.");
+        }
+
+        public async Task<IEnumerable<RoleType>> GetAll()
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            return await db.QueryAsync<RoleType>("SELECT * FROM base_foundation.role_types");
+        }
+
+        public async Task<RoleType?> GetById(int id)
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            return await db.QueryFirstOrDefaultAsync<RoleType>("SELECT * FROM base_foundation.role_types WHERE id = @Id", new { Id = id });
+        }
+
+        public async Task<RoleType> Create(RoleType roleType)
+        {
+            var sql = "INSERT INTO base_foundation.role_types (role_name, description, permissions_json, is_system_role) VALUES (@RoleName, @Description, @PermissionsJson, @IsSystemRole) RETURNING *";
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var newRoleType = await db.QuerySingleAsync<RoleType>(sql, roleType);
+            return newRoleType;
+        }
+
+        public async Task<RoleType?> Update(RoleType roleType)
+        {
+            var sql = "UPDATE base_foundation.role_types SET role_name = @RoleName, description = @Description, permissions_json = @PermissionsJson, is_system_role = @IsSystemRole, updated_at = NOW() WHERE id = @Id RETURNING *";
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var updatedRoleType = await db.QueryFirstOrDefaultAsync<RoleType>(sql, roleType);
+            return updatedRoleType;
+        }
+
+        public async Task<bool> Delete(int id)
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var result = await db.ExecuteAsync("DELETE FROM base_foundation.role_types WHERE id = @Id", new { Id = id });
+            return result > 0;
+        }
+    }
+}
+
+
+
+Paso 6: Creación del Controlador
+Crea un archivo llamado RoleTypesController.cs dentro de la carpeta Controllers. Este archivo se encargará de exponer los endpoints HTTP.
+RoleTypes Controller
+3 sept, 19:35
+
+Abrir
+
+using Microsoft.AspNetCore.Mvc;
+using RoleTypesApi.Models;
+using RoleTypesApi.Repositories;
+
+namespace RoleTypesApi.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class RoleTypesController : ControllerBase
+    {
+        private readonly IRoleTypeRepository _repository;
+
+        public RoleTypesController(IRoleTypeRepository repository)
+        {
+            _repository = repository;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAll()
+        {
+            var roleTypes = await _repository.GetAll();
+            return Ok(roleTypes);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var roleType = await _repository.GetById(id);
+            if (roleType == null)
+            {
+                return NotFound();
+            }
+            return Ok(roleType);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create(RoleType roleType)
+        {
+            var newRoleType = await _repository.Create(roleType);
+            return CreatedAtAction(nameof(GetById), new { id = newRoleType.Id }, newRoleType);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, RoleType roleType)
+        {
+            if (id != roleType.Id)
+            {
+                return BadRequest("ID mismatch");
+            }
+
+            var updatedRoleType = await _repository.Update(roleType);
+            if (updatedRoleType == null)
+            {
+                return NotFound();
+            }
+            return Ok(updatedRoleType);
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var isDeleted = await _repository.Delete(id);
+            if (!isDeleted)
+            {
+                return NotFound();
+            }
+            return NoContent();
+        }
+    }
+}
+
+
+Paso 7: Configuración de la Inyección de Dependencias
+Ahora, abre el archivo Program.cs para registrar el repositorio y la configuración del controlador.
+Program.cs
+3 sept, 19:35
+
+Abrir
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddControllers();
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Add repository to dependency injection
+builder.Services.AddScoped<RoleTypesApi.Repositories.IRoleTypeRepository, RoleTypesApi.Repositories.RoleTypeRepository>();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+```
+
+---
+
+### Paso 8: Ejecución del Proyecto
+
+Finalmente, puedes ejecutar el proyecto desde la terminal:
+
+```bash
+dotnet run
+
+
+
+La API estará disponible en https://localhost:5001 (o un puerto similar). Puedes usar herramientas como Swagger, Postman o Insomnia para probar los endpoints.
+
+¿Te gustaría que te ayude a crear los modelos y controladores para otras tablas, o que te brinde ejemplos de cómo hacer las peticiones HTTP a esta API?

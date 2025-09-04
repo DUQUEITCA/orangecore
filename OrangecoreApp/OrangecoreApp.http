@@ -1,0 +1,6 @@
+@OrangecoreApp_HostAddress = http://localhost:5214
+
+GET {{OrangecoreApp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

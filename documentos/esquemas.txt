@@ -23,3 +23,26 @@
 * CHAT_ENTERPRISE_AGORA
 * REPORTES_BUSINESS_INTELLIGENCE
 * NOTIFICATIONS_SYSTEM_ENTERPRISE
+
+
+orangecore_db=# \dn
+                   List of schemas
+              Name               |       Owner
+---------------------------------+-------------------
+ base_foundation                 | postgres
+ chat_enterprise_agora           | postgres
+ documentos_file_management      | postgres
+ emails_enterprise               | postgres
+ finanzas_bookkeeping            | postgres
+ inspecciones_evaluaciones       | postgres
+ notas_comunicacion              | postgres
+ notifications_system_enterprise | postgres
+ public                          | pg_database_owner
+ reports_business_intelligence   | postgres
+ scheduling_weather              | postgres
+ task_management                 | postgres
+ workflows_automation_engine     | postgres
+(13 rows)
+
+
+orangecore_db=#
