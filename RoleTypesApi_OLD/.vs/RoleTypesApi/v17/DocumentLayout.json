@@ -1,0 +1,91 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{298FF66C-3D45-45C0-9C4F-B2FDE24C3259}|RoleTypesApi.csproj|c:\\users\\duque\\onedrive\\documents\\henry duque\\orangecore\\roletypesapi\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{298FF66C-3D45-45C0-9C4F-B2FDE24C3259}|RoleTypesApi.csproj|solutionrelative:appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{298FF66C-3D45-45C0-9C4F-B2FDE24C3259}|RoleTypesApi.csproj|c:\\users\\duque\\onedrive\\documents\\henry duque\\orangecore\\roletypesapi\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{298FF66C-3D45-45C0-9C4F-B2FDE24C3259}|RoleTypesApi.csproj|solutionrelative:appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{298FF66C-3D45-45C0-9C4F-B2FDE24C3259}|RoleTypesApi.csproj|c:\\users\\duque\\onedrive\\documents\\henry duque\\orangecore\\roletypesapi\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{298FF66C-3D45-45C0-9C4F-B2FDE24C3259}|RoleTypesApi.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{298FF66C-3D45-45C0-9C4F-B2FDE24C3259}|RoleTypesApi.csproj|c:\\users\\duque\\onedrive\\documents\\henry duque\\orangecore\\roletypesapi\\properties\\launchsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{298FF66C-3D45-45C0-9C4F-B2FDE24C3259}|RoleTypesApi.csproj|solutionrelative:properties\\launchsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "appsettings.Development.json",
+              "DocumentMoniker": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\appsettings.Development.json",
+              "RelativeDocumentMoniker": "appsettings.Development.json",
+              "ToolTip": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\appsettings.Development.json",
+              "RelativeToolTip": "appsettings.Development.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-09-04T23:17:54.091Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\appsettings.json",
+              "RelativeDocumentMoniker": "appsettings.json",
+              "ToolTip": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\appsettings.json",
+              "RelativeToolTip": "appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAABiAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-09-04T23:17:35.033Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "launchSettings.json",
+              "DocumentMoniker": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\Properties\\launchSettings.json",
+              "RelativeDocumentMoniker": "Properties\\launchSettings.json",
+              "ToolTip": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\Properties\\launchSettings.json",
+              "RelativeToolTip": "Properties\\launchSettings.json",
+              "ViewState": "AgIAABQAAAAAAAAAAAAuwCkAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-09-04T22:56:12.974Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\Program.cs",
+              "RelativeDocumentMoniker": "Program.cs",
+              "ToolTip": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypesApi\\Program.cs",
+              "RelativeToolTip": "Program.cs",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAACUAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-04T22:21:30.827Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

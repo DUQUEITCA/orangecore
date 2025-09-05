@@ -103,6 +103,10 @@ namespace RoleTypesApi.Repositories
     }
 }
 
+#
+# RoleTypeRepository.cs
+#
+
 using System.Data;
 using Dapper;
 using Npgsql;
@@ -287,3 +291,59 @@ dotnet run
 La API estará disponible en https://localhost:5001 (o un puerto similar). Puedes usar herramientas como Swagger, Postman o Insomnia para probar los endpoints.
 
 ¿Te gustaría que te ayude a crear los modelos y controladores para otras tablas, o que te brinde ejemplos de cómo hacer las peticiones HTTP a esta API?
+
+
+
+
+El error que estás viendo, `System.InvalidOperationException: Unable to resolve service for type 'RoleTypesApi.Repositories.IRoleTypeRepository' while attempting to activate 'RoleTypesApi.Controllers.RoleTypesController'`, indica un problema con la **inyección de dependencias** en tu aplicación ASP.NET Core.
+
+-----
+
+### Causa del error
+
+La causa principal es que el **contenedor de inyección de dependencias** de ASP.NET Core no sabe cómo crear una instancia de **`IRoleTypeRepository`** para poder proporcionársela al **`RoleTypesController`**. Esto ocurre porque no has registrado la clase que implementa esa interfaz (`RoleTypeRepository`, por ejemplo) en el archivo `Program.cs` o `Startup.cs` de tu proyecto.
+
+Cuando el controlador (`RoleTypesController`) se está inicializando, busca en su constructor la dependencia de `IRoleTypeRepository` para inyectarla. Como no encuentra una "receta" para construirla, lanza esta excepción.
+
+-----
+
+### Solución
+
+Para solucionar este problema, necesitas registrar la interfaz y su implementación en el contenedor de servicios. Generalmente, esto se hace en el archivo **`Program.cs`** (en proyectos de .NET 6 o posterior).
+
+Añade la siguiente línea en la sección donde se configuran los servicios, como se muestra en el ejemplo:
+
+```csharp
+// Program.cs
+// ...
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+
+// Registra el repositorio para la inyección de dependencias
+builder.Services.AddScoped<IRoleTypeRepository, RoleTypeRepository>();
+
+builder.Services.AddControllers();
+// ...
+```
+
+#### Explicación de los métodos de registro
+
+  * **`AddScoped<TInterface, TImplementation>()`**: Este es el método más común para registrar repositorios. Significa que se creará una **única instancia** de `RoleTypeRepository` por cada solicitud HTTP. Esta instancia será compartida entre todos los servicios dentro de la misma solicitud. Es ideal para trabajar con contextos de base de datos (`DbContext`) porque asegura que todas las operaciones dentro de una solicitud utilicen la misma instancia de `DbContext`.
+  * **`AddTransient<TInterface, TImplementation>()`**: Crea una nueva instancia cada vez que se solicita el servicio.
+  * **`AddSingleton<TInterface, TImplementation>()`**: Crea una única instancia de la clase para toda la vida de la aplicación. No es recomendable para servicios que manejan estado de la solicitud, como repositorios con `DbContext`.
+
+En resumen, al registrar `IRoleTypeRepository` con su implementación concreta, le estás diciendo a ASP.NET Core: "Cada vez que un controlador pida un `IRoleTypeRepository`, dale una instancia de `RoleTypeRepository`".
+
+
+INSERT INTO base_foundation.role_types (
+    role_name, 
+    description, 
+    permissions_json
+) VALUES (
+    'Viewer',
+    'Read-only access to system data, including viewing reports and user profiles. Cannot modify any data.',
+    '{"reports": {"view": true}, "users": {"read": true}}'
+);
+
+http://localhost:5113/swagger/index.html

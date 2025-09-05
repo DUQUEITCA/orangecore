@@ -1,0 +1,532 @@
+¡Claro\! Empecemos de nuevo con una solución completa y robusta. A continuación, te proporciono todos los componentes de código necesarios para una Web API de .NET 8 que realiza operaciones CRUD en tu tabla `role_types` utilizando un patrón de repositorio y la librería Dapper.
+
+He asumido que seguirás la estructura de tu proyecto anterior, que utiliza las carpetas **Models**, **Repositories**, y **Controllers**.
+
+-----
+
+### 1\. `Models/RoleType.cs`
+
+Este archivo define la entidad C\# que mapea directamente a las columnas de tu tabla `role_types`. La propiedad `PermissionsJson` se usa para manejar el tipo de datos `JSONB`.
+
+```csharp
+using System.Text.Json;
+
+namespace RoleTypesApi.Models
+{
+    public class RoleType
+    {
+        public int Id { get; set; }
+        public string RoleName { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public JsonDocument? PermissionsJson { get; set; }
+        public bool IsSystemRole { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+}
+```
+
+-----
+
+### 2\. `Repositories/IRoleTypeRepository.cs`
+
+Este es el contrato para tu repositorio. La interfaz define las operaciones que se pueden realizar, lo que promueve el principio de Inversión de Dependencias.
+
+```csharp
+using RoleTypesApi.Models;
+
+namespace RoleTypesApi.Repositories
+{
+    public interface IRoleTypeRepository
+    {
+        Task<IEnumerable<RoleType>> GetAll();
+        Task<RoleType?> GetById(int id);
+        Task<RoleType> Create(RoleType roleType);
+        Task<RoleType?> Update(RoleType roleType);
+        Task<bool> Delete(int id);
+    }
+}
+```
+
+-----
+
+### 3\. `Repositories/RoleTypeRepository.cs`
+
+Esta clase implementa la interfaz anterior y contiene la lógica de base de datos utilizando **Dapper**. Las consultas SQL se escriben directamente para obtener el máximo control y rendimiento.
+
+```csharp
+using System.Data;
+using Dapper;
+using Npgsql;
+using RoleTypesApi.Models;
+using Microsoft.Extensions.Configuration; // Se necesita para inyectar IConfiguration
+
+namespace RoleTypesApi.Repositories
+{
+    public class RoleTypeRepository : IRoleTypeRepository
+    {
+        private readonly string _connectionString;
+
+        public RoleTypeRepository(IConfiguration configuration)
+        {
+            _connectionString = configuration.GetConnectionString("PostgresConnection") ?? throw new InvalidOperationException("Connection string 'PostgresConnection' not found.");
+        }
+
+        public async Task<IEnumerable<RoleType>> GetAll()
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            return await db.QueryAsync<RoleType>("SELECT id, role_name, description, permissions_json, is_system_role, created_at, updated_at FROM base_foundation.role_types");
+        }
+
+        public async Task<RoleType?> GetById(int id)
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            return await db.QueryFirstOrDefaultAsync<RoleType>("SELECT id, role_name, description, permissions_json, is_system_role, created_at, updated_at FROM base_foundation.role_types WHERE id = @Id", new { Id = id });
+        }
+
+        public async Task<RoleType> Create(RoleType roleType)
+        {
+            var sql = "INSERT INTO base_foundation.role_types (role_name, description, permissions_json, is_system_role) VALUES (@RoleName, @Description, @PermissionsJson, @IsSystemRole) RETURNING id, role_name, description, permissions_json, is_system_role, created_at, updated_at";
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var newRoleType = await db.QuerySingleAsync<RoleType>(sql, roleType);
+            return newRoleType;
+        }
+
+        public async Task<RoleType?> Update(RoleType roleType)
+        {
+            var sql = "UPDATE base_foundation.role_types SET role_name = @RoleName, description = @Description, permissions_json = @PermissionsJson, is_system_role = @IsSystemRole, updated_at = NOW() WHERE id = @Id RETURNING id, role_name, description, permissions_json, is_system_role, created_at, updated_at";
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var updatedRoleType = await db.QueryFirstOrDefaultAsync<RoleType>(sql, roleType);
+            return updatedRoleType;
+        }
+
+        public async Task<bool> Delete(int id)
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var result = await db.ExecuteAsync("DELETE FROM base_foundation.role_types WHERE id = @Id", new { Id = id });
+            return result > 0;
+        }
+    }
+}
+```
+
+-----
+
+### 4\. `Controllers/RoleTypesController.cs`
+
+El controlador de la API maneja las solicitudes HTTP. Utiliza la interfaz `IRoleTypeRepository` para desacoplar la lógica de negocio de la de acceso a datos.
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using RoleTypesApi.Models;
+using RoleTypesApi.Repositories;
+
+namespace RoleTypesApi.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class RoleTypesController : ControllerBase
+    {
+        private readonly IRoleTypeRepository _repository;
+
+        public RoleTypesController(IRoleTypeRepository repository)
+        {
+            _repository = repository;
+        }
+
+        // GET: api/roletypes
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<RoleType>>> GetAll()
+        {
+            var roleTypes = await _repository.GetAll();
+            return Ok(roleTypes);
+        }
+
+        // GET: api/roletypes/5
+        [HttpGet("{id}")]
+        public async Task<ActionResult<RoleType>> GetById(int id)
+        {
+            var roleType = await _repository.GetById(id);
+            if (roleType == null)
+            {
+                return NotFound();
+            }
+            return Ok(roleType);
+        }
+
+        // POST: api/roletypes
+        [HttpPost]
+        public async Task<ActionResult<RoleType>> Create(RoleType roleType)
+        {
+            var newRoleType = await _repository.Create(roleType);
+            return CreatedAtAction(nameof(GetById), new { id = newRoleType.Id }, newRoleType);
+        }
+
+        // PUT: api/roletypes/5
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, RoleType roleType)
+        {
+            if (id != roleType.Id)
+            {
+                return BadRequest("ID mismatch");
+            }
+
+            var updatedRoleType = await _repository.Update(roleType);
+            if (updatedRoleType == null)
+            {
+                return NotFound();
+            }
+            return Ok(updatedRoleType);
+        }
+
+        // DELETE: api/roletypes/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var isDeleted = await _repository.Delete(id);
+            if (!isDeleted)
+            {
+                return NotFound();
+            }
+            return NoContent();
+        }
+    }
+}
+```
+
+-----
+
+### 5\. `Program.cs`
+
+Este es el punto de entrada de tu aplicación, donde se configuran los servicios y el pipeline de solicitudes. Aquí es crucial que registres tu repositorio para la inyección de dependencias.
+
+```csharp
+// Archivo: Program.cs
+// Este archivo es el punto de entrada principal de la aplicación.
+// Aquí se configuran los servicios y el middleware.
+
+using Microsoft.OpenApi.Models;
+using RoleTypesApi.Repositories;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+
+builder.Services.AddControllers();
+
+// h.duque
+// Configura la inyección de dependencias para tu repositorio
+builder.Services.AddScoped<IRoleTypeRepository, RoleTypeRepository>();
+
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "RoleTypes API", Version = "v1" });
+});
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "RoleTypes API V1");
+        c.RoutePrefix = string.Empty; // Set Swagger UI at app's root
+    });
+}
+
+app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+```
+
+-----
+
+### 6\. `appsettings.json`
+
+Este archivo contendrá la cadena de conexión a tu base de datos. Debes reemplazar los valores con tus credenciales.
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "PostgresConnection": "Host=localhost;Database=your_database_name;Username=your_username;Password=your_password"
+  }
+}
+```
+
+-----
+
+### 7\. `launchSettings.json`
+
+Este archivo es opcional pero muy útil. Asegura que Visual Studio inicie automáticamente el navegador en la página de Swagger UI.
+
+```json
+{
+  "$schema": "http://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "http://localhost:5113",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "https://localhost:7226;http://localhost:5113",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "IIS Express": {
+      "commandName": "IISExpress",
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
+```
+
+
+Para instalar las dependencias necesarias de Dapper y el proveedor de PostgreSQL, puedes usar el Administrador de Paquetes de NuGet a través de la interfaz de Visual Studio o la línea de comandos.
+
+### Opción 1: Consola del Administrador de Paquetes (Visual Studio)
+
+1.  En Visual Studio, ve a **Tools** (Herramientas) \> **NuGet Package Manager** (Administrador de Paquetes NuGet) \> **Package Manager Console** (Consola del Administrador de Paquetes).
+
+2.  Asegúrate de que el "Proyecto predeterminado" sea tu proyecto actual (`RoleTypesApi`).
+
+3.  Ejecuta los siguientes comandos uno por uno:
+
+    ```bash
+    Install-Package Dapper
+    ```
+
+    ```bash
+    Install-Package Npgsql
+    ```
+
+### Opción 2: Línea de Comandos (`dotnet CLI`)
+
+1.  Abre un terminal o símbolo del sistema.
+
+2.  Navega hasta la carpeta de tu proyecto (`RoleTypesApi`).
+
+3.  Ejecuta los siguientes comandos:
+
+    ```bash
+    dotnet add package Dapper
+    ```
+
+    ```bash
+    dotnet add package Npgsql
+    ```
+
+Después de instalar estos paquetes, tu proyecto tendrá acceso a las librerías necesarias para usar Dapper y conectarse a una base de datos PostgreSQL.
+
+
+Para ejecutar tu aplicación ASP.NET Core desde la línea de comandos en modo HTTP, usa el siguiente comando del `dotnet CLI`:
+
+```bash
+dotnet run --launch-profile http
+```
+
+### Explicación del comando
+
+  * **`dotnet run`**: Este es el comando principal que compila y ejecuta la aplicación.
+  * **`--launch-profile http`**: Esta opción le indica a `dotnet run` que utilice la configuración del perfil llamado **`http`** que se encuentra en tu archivo `launchSettings.json`. Al hacerlo, la aplicación se iniciará en el puerto HTTP especificado en ese perfil, que en tu caso es `http://localhost:5113`.
+
+
+  El error que obtuviste, `400 Bad Request`, indica que la petición que enviaste no tiene el formato correcto, lo que causó un fallo en el **modelo de validación** de ASP.NET Core. Hay dos problemas principales en tu petición.
+
+### 1\. Error de Formato en `permissionsJson`
+
+El mensaje `'r' is invalid after a value` se debe a que el JSON interno de `permissionsJson` no está correctamente escapado dentro del JSON principal. En la línea `  "permissionsJson": "{"reports": {"view": true}, "users": {"read": true}}" `, las comillas dobles internas (`"reports"`, `"view"`, etc.) están terminando prematuramente la cadena.
+
+Para resolver esto, debes **escapar** las comillas dobles internas con una barra invertida (`\`).
+
+**JSON Original (Incorrecto):**
+
+```json
+{
+  ...
+  "permissionsJson": "{"reports": {"view": true}, "users": {"read": true}}",
+  ...
+}
+```
+
+**JSON Correcto (con comillas escapadas):**
+
+```json
+{
+  ...
+  "permissionsJson": "{\"reports\": {\"view\": true}, \"users\": {\"read\": true}}",
+  ...
+}
+```
+
+-----
+
+### 2\. Campo `id` no necesario y error de validación `roleType`
+
+La tabla `role_types` usa `SERIAL` para su `id`, lo que significa que la base de datos genera automáticamente este valor al crear un nuevo registro. Al enviar `"id": 0` en una petición `POST`, puede causar conflictos de validación. La solución es **eliminar la propiedad `id`** por completo de la petición `POST`.
+
+El segundo error, `"The roleType field is required."`, es un problema de validación del modelo que indica que el cuerpo de la petición no se está enlazando correctamente a tu clase `RoleType`. Esto puede ocurrir si el controlador espera una propiedad llamada `roleType` que contenga el objeto, en lugar de que el objeto mismo sea el cuerpo de la petición. Sin embargo, tu controlador está correctamente definido para recibir el objeto directamente.
+
+Al corregir el problema de formato del JSON, el validador del modelo debería ser capaz de procesar el objeto `RoleType` completo y resolver este error.
+
+### Solución Completa: Petición `cURL` Corregida
+
+Aquí tienes la petición `cURL` corregida. He escapado las comillas dobles y he eliminado la propiedad `"id"` para una petición `POST` válida.
+
+```bash
+curl -X 'POST' \
+  'http://localhost:5113/api/RoleTypes' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "roleName": "Viewer",
+  "description": "Read-only access to system data, including viewing reports and user profiles. Cannot modify any data.",
+  "permissionsJson": "{\"reports\": {\"view\": true}, \"users\": {\"read\": true}}",
+  "isSystemRole": true,
+  "createdAt": "2025-09-04T23:52:22.598Z",
+  "updatedAt": "2025-09-04T23:52:22.598Z"
+}'
+```
+
+Al enviar esta petición, el servidor debería procesarla correctamente y devolver el objeto `RoleType` creado con su `id` asignado por la base de datos.
+
+
+El error `System.NotSupportedException` indica que **Dapper no sabe cómo manejar el tipo de datos `System.Text.Json.JsonDocument`** al intentar pasarlo como parámetro a la base de datos.
+
+Este problema ocurre porque Dapper, un micro-ORM, no tiene un mapeo predeterminado para tipos de objetos complejos como `JsonDocument`. Para que funcione, debes pasar la información como un tipo que Dapper y el controlador de PostgreSQL puedan entender, que en este caso es una cadena de texto (string).
+
+### Solución 🛠️
+
+Para solucionar el error, debes realizar un cambio en tu modelo `RoleType.cs` y en tu repositorio `RoleTypeRepository.cs`.
+
+1.  **Modifica `RoleType.cs`:**
+
+      * Cambia el tipo de la propiedad `PermissionsJson` de `JsonDocument?` a `string?`.
+      * De esta manera, el modelo de tu API manejará el JSON como una cadena, que es el formato en el que se envía desde la petición HTTP y el que Dapper puede pasar a la base de datos.
+
+    <!-- end list -->
+
+    ```csharp
+    // Archivo: Models/RoleType.cs
+
+    namespace RoleTypesApi.Models
+    {
+        public class RoleType
+        {
+            public int Id { get; set; }
+            public string RoleName { get; set; } = string.Empty;
+            public string? Description { get; set; }
+            public string? PermissionsJson { get; set; } // <--- Cambio aquí
+            public bool IsSystemRole { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public DateTime UpdatedAt { get; set; }
+        }
+    }
+    ```
+
+2.  **Modifica `RoleTypeRepository.cs`:**
+
+      * Al cambiar el tipo en el modelo, las operaciones en el repositorio se simplificarán. Dapper ahora podrá mapear automáticamente la propiedad `PermissionsJson` del modelo a un parámetro SQL de tipo string, el cual el controlador de PostgreSQL (`Npgsql`) convertirá correctamente al tipo `JSONB` en la base de datos.
+      * No necesitas cambiar nada más, ya que Dapper se encargará de la conversión.
+      * **Nota**: Los métodos `QueryAsync` y `QuerySingleAsync` manejarán la conversión de string a `JsonDocument` en el lado de la lectura (desde la base de datos al modelo). Sin embargo, si obtienes un error de mapeo al leer, podrías necesitar un `TypeHandler` personalizado, pero la mayoría de las veces el controlador de `Npgsql` y Dapper lo gestionan sin problemas.
+
+Al realizar este cambio y ejecutar tu aplicación de nuevo, la petición `POST` debería funcionar correctamente.
+
+El error `42804: column "permissions_json" is of type jsonb but expression is of type text` es muy claro. Significa que, aunque has cambiado el tipo de la propiedad `PermissionsJson` a `string` en tu modelo, **la base de datos no sabe cómo convertir automáticamente esa cadena de texto en un tipo `JSONB`** para la inserción.
+
+Para resolver esto, necesitas indicarle explícitamente a PostgreSQL que trate la cadena de texto como un `JSONB`. Esto se logra añadiendo un **cast de tipo** directamente en tu consulta SQL.
+
+### Solución: Modifica `RoleTypeRepository.cs`
+
+Debes corregir la sintaxis de las consultas SQL en los métodos **`Create`** y **`Update`** para que el parámetro `@PermissionsJson` se convierta a `jsonb`.
+
+```csharp
+// Archivo: Repositories/RoleTypeRepository.cs
+
+using System.Data;
+using Dapper;
+using Npgsql;
+using RoleTypesApi.Models;
+using Microsoft.Extensions.Configuration; 
+
+namespace RoleTypesApi.Repositories
+{
+    public class RoleTypeRepository : IRoleTypeRepository
+    {
+        private readonly string _connectionString;
+
+        public RoleTypeRepository(IConfiguration configuration)
+        {
+            _connectionString = configuration.GetConnectionString("PostgresConnection") ?? throw new InvalidOperationException("Connection string 'PostgresConnection' not found.");
+        }
+
+        public async Task<IEnumerable<RoleType>> GetAll()
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            return await db.QueryAsync<RoleType>("SELECT id, role_name, description, permissions_json, is_system_role, created_at, updated_at FROM base_foundation.role_types");
+        }
+
+        public async Task<RoleType?> GetById(int id)
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            return await db.QueryFirstOrDefaultAsync<RoleType>("SELECT id, role_name, description, permissions_json, is_system_role, created_at, updated_at FROM base_foundation.role_types WHERE id = @Id", new { Id = id });
+        }
+
+        public async Task<RoleType> Create(RoleType roleType)
+        {
+            // Se agrega '::jsonb' para convertir el string al tipo jsonb
+            var sql = "INSERT INTO base_foundation.role_types (role_name, description, permissions_json, is_system_role) VALUES (@RoleName, @Description, @PermissionsJson::jsonb, @IsSystemRole) RETURNING id, role_name, description, permissions_json, is_system_role, created_at, updated_at";
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var newRoleType = await db.QuerySingleAsync<RoleType>(sql, roleType);
+            return newRoleType;
+        }
+
+        public async Task<RoleType?> Update(RoleType roleType)
+        {
+            // Se agrega '::jsonb' para convertir el string al tipo jsonb
+            var sql = "UPDATE base_foundation.role_types SET role_name = @RoleName, description = @Description, permissions_json = @PermissionsJson::jsonb, is_system_role = @IsSystemRole, updated_at = NOW() WHERE id = @Id RETURNING id, role_name, description, permissions_json, is_system_role, created_at, updated_at";
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var updatedRoleType = await db.QueryFirstOrDefaultAsync<RoleType>(sql, roleType);
+            return updatedRoleType;
+        }
+
+        public async Task<bool> Delete(int id)
+        {
+            using IDbConnection db = new NpgsqlConnection(_connectionString);
+            var result = await db.ExecuteAsync("DELETE FROM base_foundation.role_types WHERE id = @Id", new { Id = id });
+            return result > 0;
+        }
+    }
+}
+```
+
+Al agregar el cast `::jsonb`, le estás diciendo a la base de datos que el valor que Dapper le está pasando como `@PermissionsJson` debe ser tratado como un JSON válido, lo que solucionará el error de tipo. No necesitas modificar el modelo `RoleType.cs` ni el controlador.

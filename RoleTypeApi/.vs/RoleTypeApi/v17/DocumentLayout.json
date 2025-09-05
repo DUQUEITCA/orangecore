@@ -1,0 +1,58 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypeApi\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{C19A3F4C-45EF-44F9-8C38-F3A112597D14}|RoleTypeApi.csproj|c:\\users\\duque\\onedrive\\documents\\henry duque\\orangecore\\roletypeapi\\repositories\\roletyperepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C19A3F4C-45EF-44F9-8C38-F3A112597D14}|RoleTypeApi.csproj|solutionrelative:repositories\\roletyperepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{C19A3F4C-45EF-44F9-8C38-F3A112597D14}|RoleTypeApi.csproj|c:\\users\\duque\\onedrive\\documents\\henry duque\\orangecore\\roletypeapi\\models\\roletype.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C19A3F4C-45EF-44F9-8C38-F3A112597D14}|RoleTypeApi.csproj|solutionrelative:models\\roletype.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "RoleTypeRepository.cs",
+              "DocumentMoniker": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypeApi\\Repositories\\RoleTypeRepository.cs",
+              "RelativeDocumentMoniker": "Repositories\\RoleTypeRepository.cs",
+              "ToolTip": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypeApi\\Repositories\\RoleTypeRepository.cs",
+              "RelativeToolTip": "Repositories\\RoleTypeRepository.cs",
+              "ViewState": "AgIAAB8AAAAAAAAAAAAwwDgAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-05T00:09:46.227Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "RoleType.cs",
+              "DocumentMoniker": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypeApi\\Models\\RoleType.cs",
+              "RelativeDocumentMoniker": "Models\\RoleType.cs",
+              "ToolTip": "C:\\Users\\duque\\OneDrive\\Documents\\Henry Duque\\Orangecore\\RoleTypeApi\\Models\\RoleType.cs",
+              "RelativeToolTip": "Models\\RoleType.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAjAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-05T00:00:48.849Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
